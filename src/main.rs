@@ -1,7 +1,7 @@
 use std::thread::sleep;
 
 use backgammon::{engine::{find_best_move}, game::{self, Board, Dice, GameOutcome, Player}};
-use nannou::{color::{BLACK, WHITE}, geom::Rect};
+use nannou::{color::{self, BLACK, WHITE}, geom::Rect};
 use rand::{rng, seq::IteratorRandom};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
@@ -118,17 +118,25 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
             let black_bar = model.board.bar(Player::Black);
 
             if white_bar > 0 {
+                draw.ellipse()
+                    .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.top() - tile_height / 1.95)
+                    .w_h(tile_width * 0.7, tile_width * 0.7)
+                    .color(nannou::color::WHITE);
                 draw.text(&white_bar.to_string())
                     .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.top() - tile_height / 2.0)
                     .font_size(tile_width as u32 / 2)
-                    .color(nannou::color::WHITE);
+                    .color(nannou::color::BLACK);
             }
 
             if black_bar > 0 {
+                draw.ellipse()
+                    .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.bottom() + tile_height / 2.05)
+                    .w_h(tile_width * 0.7, tile_width * 0.7)
+                    .color(nannou::color::RED);
                 draw.text(&black_bar.to_string())
                     .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.bottom() + tile_height / 2.0)
                     .font_size(tile_width as u32 / 2)
-                    .color(nannou::color::RED);
+                    .color(nannou::color::WHITE);
             }
 
             continue;
@@ -149,8 +157,14 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
 
         if checkers != 0 {
             let color = if checkers > 0 { nannou::color::WHITE } else { nannou::color::RED };
+            draw.ellipse()
+                .x_y(x + tile_width / 2.0, y - tile_height / 6.2)
+                .w_h(tile_width * 0.7, tile_width * 0.7)
+                .color(color);
+
+            let color = if checkers > 0 { nannou::color::BLACK } else { nannou::color::WHITE };
             draw.text(&checkers.abs().to_string())
-                .x_y(x + tile_width / 2.0, y - tile_height / 5.0)
+                .x_y(x + tile_width / 2.0, y - tile_height / 7.0)
                 .font_size(tile_width as u32 / 2)
                 .color(color);
         }
@@ -169,8 +183,14 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
         let checkers = model.board.checkers_on_position(indx);
         if checkers != 0 {
             let color = if checkers > 0 { nannou::color::WHITE } else { nannou::color::RED };
+            draw.ellipse()
+                .x_y(x + tile_width / 2.0, y + tile_height / 7.8)
+                .w_h(tile_width * 0.7, tile_width * 0.7)
+                .color(color);
+
+            let color = if checkers > 0 { nannou::color::BLACK } else { nannou::color::WHITE };
             draw.text(&checkers.abs().to_string())
-                .x_y(x + tile_width / 2.0, y + tile_height / 5.0)
+                .x_y(x + tile_width / 2.0, y + tile_height / 7.0)
                 .font_size(tile_width as u32 / 2)
                 .color(color);
         }
