@@ -20,10 +20,37 @@ struct Model {
     wins: (u32, u32),
     gammons: (u32, u32),
     backgammons: (u32, u32),
-    current_dice: Dice,
+    current_dice: Option<Dice>,
+    state: State,
+}
+
+enum State {
+    RollDice,
+    ShowStatus(u8),
+    ChooseMove,
 }
 
 fn update(_app: &nannou::App, model: &mut Model, _update: nannou::event::Update) {
+    match model.state {
+        State::RollDice => {
+            model.current_dice = Some(Dice::roll());
+            model.state = State::ShowStatus(0);
+            return;
+        }
+        State::ShowStatus(n) if n == 30 => {
+            model.state = State::ChooseMove;
+            return;
+        }
+        State::ShowStatus(n) => {
+            model.state = State::ShowStatus(n + 1);
+            return;
+        }
+        State::ChooseMove => {
+            model.state = State::RollDice;
+        }
+    }
+
+
     match model.board.outcome() {
         GameOutcome::Ongoing => (),
         GameOutcome::Win(player) => {
@@ -52,15 +79,13 @@ fn update(_app: &nannou::App, model: &mut Model, _update: nannou::event::Update)
             model.board = Board::new();
         }
     }
-
-    model.current_dice = Dice::roll();
     
     let best_move = match model.board.get_active_player() {
-        Player::White => find_best_move(&model.board, model.current_dice, 2),
-        Player::Black => find_best_move(&model.board, model.current_dice, 2),
+        Player::White => find_best_move(&model.board, model.current_dice.unwrap(), 2),
+        Player::Black => choose_random_move(&model.board, model.current_dice.unwrap()),
     };
 
-    sleep(std::time::Duration::from_millis(500));
+    model.current_dice = None;
     
     model.board.make_move_unchecked(best_move);
 }
@@ -77,7 +102,8 @@ fn model(app: &nannou::App) -> Model {
         wins: (0, 0),
         gammons: (0, 0),
         backgammons: (0, 0),
-        current_dice: Dice::new(1, 1), // Initial dice, can be changed later
+        current_dice: None, 
+        state: State::RollDice,
     }
 }
 
@@ -196,6 +222,24 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
         }
     }
 
+    // Draw dice 
+    if let Some(dice) = model.current_dice {
+        match model.board.active_player() {
+            Player::White => {
+                draw.text(&dice.to_string())
+                    .x_y(-board_rect.w() / 4.0 + board_rect.x(), board_rect.h() / 40.0)
+                    .font_size(board_rect.w() as u32 / 10)
+                    .color(nannou::color::WHITE);
+            }
+            Player::Black => {
+                draw.text(&dice.to_string())
+                    .x_y(board_rect.w() / 4.0 + board_rect.x(), board_rect.h() / 40.0)
+                    .font_size(board_rect.w() as u32 / 10)
+                    .color(nannou::color::WHITE);
+            }
+        }
+    }
+
     // Draw stats
     let mut y = stats_rect.top() - 50.0;
     let x = stats_rect.x();
@@ -262,14 +306,6 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
     y -= 30.0;
 
     draw.text(&format!("Black Gammons: {}, Backgammons: {}", model.gammons.1, model.backgammons.1))
-        .x_y(x, y)
-        .w(stats_rect_width - 20.0)
-        .font_size(16)
-        .color(nannou::color::WHITE);
-
-    y -= 30.0;
-
-    draw.text(&format!("Current Dice: {}", model.current_dice.to_string()))
         .x_y(x, y)
         .w(stats_rect_width - 20.0)
         .font_size(16)

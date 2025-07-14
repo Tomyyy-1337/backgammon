@@ -143,6 +143,11 @@ impl Board {
             } else if checker < 0 {
                 let mult = 24 - i as i16;
                 score += checker as i16 * mult.min(19);
+                if checker == -1 {
+                    single -= 1;
+                } else if i < 6 {
+                    blocked -= 1;
+                }                
             } 
         }
         
