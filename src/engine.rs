@@ -28,6 +28,11 @@ pub fn find_best_move(board: &Board, dice: Dice, depth: u8) -> Move {
     best_move.0
 }
 
+pub fn search_eval(board: &Board, depth: u8) -> f32 {
+    let mut seen = HashMap::new();
+    average_eval(board, f32::NEG_INFINITY, f32::INFINITY, depth, &mut seen)
+}
+
 fn average_eval(board: &Board, alpha: f32, beta: f32, depth: u8, seen: &mut HashMap<(Board,Dice), f32>) -> f32 {
     let mut sum = 0.0;
     for (dice, propability) in Dice::ALL_WITH_PROPABILITY {

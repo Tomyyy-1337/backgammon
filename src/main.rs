@@ -1,17 +1,13 @@
-use std::thread::sleep;
-
-use backgammon::{engine::find_best_move, game::{self, Board, Dice, GameOutcome, Player, Position}};
-use nannou::{color::{self, BLACK, WHITE}, geom::Rect};
+use backgammon::{engine::find_best_move, game::{self, Board, Dice, GameOutcome, HalfMove, Move, Player, Position}};
+use nannou::{color::WHITE, geom::Rect};
 use rand::{rng, seq::IteratorRandom};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+
 
 fn main() {
     // run_games();
     // benchmark();
 
     nannou::app(model).update(update).run();
-
-    
 }
 
 struct Model {
@@ -22,6 +18,10 @@ struct Model {
     backgammons: (u32, u32),
     current_dice: Option<Dice>,
     state: State,
+    pending_move_part: Option<game::Position>,
+    mous_is_down: bool,
+    available_moves: Vec<game::Move>,
+    engine_thread: Option<std::thread::JoinHandle<()>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -29,7 +29,8 @@ enum State {
     RollDice,
     ShowStatus(u8),
     ChooseMove,
-    ShowMove(u8)
+    ShowMove(u8),
+    UserMove
 }
 
 fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) {
@@ -37,7 +38,7 @@ fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) 
     match model.state {
         State::RollDice => {
             model.current_dice = Some(Dice::roll());
-            model.state = State::ShowStatus(30);
+            model.state = State::ShowStatus(100);
             return;
         }
         State::ShowStatus(n) if n == 0 => {
@@ -49,7 +50,9 @@ fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) 
             return;
         }
         State::ShowMove(n) if n == 0 => {
-            model.state = State::RollDice;
+            model.state = State::UserMove;
+            model.current_dice = Some(Dice::roll());
+            model.available_moves = model.board.generage_moves(model.current_dice.unwrap());
             return;
         }
         State::ShowMove(n) => {
@@ -57,45 +60,90 @@ fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) 
             return;
         }
         State::ChooseMove => {
-            model.state = State::ShowMove(10);
+            match model.board.outcome() {
+                GameOutcome::Ongoing => (),
+                GameOutcome::Win(player) => {
+                    match player {
+                        Player::White => model.wins.0 += 1,
+                        Player::Black => model.wins.1 += 1,
+                    }
+                    model.games_played += 1;
+                    model.board = Board::new();
+                }
+                GameOutcome::Gammon(player) => {
+                    model.board = Board::new();
+                    match player {
+                        Player::White => model.gammons.0 += 1,
+                        Player::Black => model.gammons.1 += 1,  
+                    }
+                    model.games_played += 1;
+                    model.board = Board::new();
+                }
+                GameOutcome::Backgammon(player) => {
+                    match player {
+                        Player::White => model.backgammons.0 += 1,
+                        Player::Black => model.backgammons.1 += 1,  
+                    }
+                    model.games_played += 1;
+                    model.board = Board::new();
+                }
+            }
+            
+            let best_move = match model.board.get_active_player() {
+                Player::White => find_best_move(&model.board, model.current_dice.unwrap(), 2),
+                Player::Black => choose_random_move(&model.board, model.current_dice.unwrap()),
+            };
+            
+            model.board.make_move_unchecked(best_move);
+
+            model.state = State::ShowMove(100);
+        }
+        State::UserMove => {
+            if model.available_moves[0].len() == 0 {
+                model.state = State::RollDice;
+                model.board.switch_player();
+            }
+            
+            if model.available_moves.is_empty() {
+                model.state = State::RollDice;
+                model.board.make_move_unchecked(Move::new());
+                return;
+            }
+
+            if let Some(current_mouse_pos) = mouse_pos_to_board_pos(app) {
+                if !app.mouse.buttons.left().is_down() {
+                    model.mous_is_down = false;
+                    return;
+                } else if model.mous_is_down {
+                    return;
+                }
+                model.mous_is_down = true;
+                if let Some(pending) = model.pending_move_part {
+                    if model.available_moves.iter().flat_map(|m|m.get_half_moves()).any(|m| m.to == current_mouse_pos && m.from == pending) {
+                        let halfmove = HalfMove { from: pending, to: current_mouse_pos };
+                        model.pending_move_part = None;
+                        model.board.make_half_move_unchecked(&halfmove);
+                        model.available_moves = model.available_moves.drain(..)
+                            .filter(|m| m.get_half_moves().any(|hm| *hm == halfmove))
+                            .collect();
+                        for mv in model.available_moves.iter_mut() {
+                            mv.remove_half_move(&halfmove);  
+                        }
+                    } else {
+                        model.pending_move_part = None;
+                    }
+                } else {
+                    if model.available_moves.iter().flat_map(|m|m.get_half_moves()).any(|m| m.from == current_mouse_pos) {
+                        model.pending_move_part = Some(current_mouse_pos);
+                    }
+                }       
+            }
+            
+            return;
         }
     }
 
-    match model.board.outcome() {
-        GameOutcome::Ongoing => (),
-        GameOutcome::Win(player) => {
-            match player {
-                Player::White => model.wins.0 += 1,
-                Player::Black => model.wins.1 += 1,
-            }
-            model.games_played += 1;
-            model.board = Board::new();
-        }
-        GameOutcome::Gammon(player) => {
-            model.board = Board::new();
-            match player {
-                Player::White => model.gammons.0 += 1,
-                Player::Black => model.gammons.1 += 1,  
-            }
-            model.games_played += 1;
-            model.board = Board::new();
-        }
-        GameOutcome::Backgammon(player) => {
-            match player {
-                Player::White => model.backgammons.0 += 1,
-                Player::Black => model.backgammons.1 += 1,  
-            }
-            model.games_played += 1;
-            model.board = Board::new();
-        }
-    }
-    
-    let best_move = match model.board.get_active_player() {
-        Player::White => find_best_move(&model.board, model.current_dice.unwrap(), 2),
-        Player::Black => choose_random_move(&model.board, model.current_dice.unwrap()),
-    };
-    
-    model.board.make_move_unchecked(best_move);
+
 }
 
 fn model(app: &nannou::App) -> Model {
@@ -112,6 +160,10 @@ fn model(app: &nannou::App) -> Model {
         backgammons: (0, 0),
         current_dice: None, 
         state: State::RollDice,
+        pending_move_part: None,
+        mous_is_down: false,
+        available_moves: Vec::new(),
+        engine_thread: None,
     }
 }
 
@@ -131,18 +183,18 @@ fn mouse_pos_to_board_pos(app: &nannou::App) -> Option<Position> {
     let tile_index = x as usize / tile_width as usize;
 
     if tile_index >= 13 {
-        return None; 
+        return Some(Position::Home);
     }
 
     if tile_index == 6 {
         return Some(Position::Bar);
     } else if y > 0.0 {
-        let indx = if tile_index < 6 { 11 - tile_index } else { 12 - tile_index };
-        return Some(Position::Board(indx as u8));
-    } else {
         let indx = if tile_index < 6 { tile_index + 12 } else { tile_index + 11 };
         return Some(Position::Board(indx as u8));
-    }
+    } else {
+        let indx = if tile_index < 6 { 11 - tile_index } else { 12 - tile_index };
+        return Some(Position::Board(indx as u8));
+    } 
 }
 
 fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
@@ -177,6 +229,17 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
                 .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, 0.0)
                 .w_h(tile_width, board_rect.h())
                 .color(nannou::color::BLACK);
+
+            if let State::UserMove = model.state && model.pending_move_part.is_none() {
+                if model.board.bar(Player::Black) > 0 {
+                    draw.rect()
+                        .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.y() - board_rect.h() / 4.0)
+                        .w_h(tile_width, board_rect.h() / 2.0)
+                        .no_fill()
+                        .stroke_weight(2.0)
+                        .stroke(WHITE);
+                }
+            }
             
             let white_bar = model.board.bar(Player::White);
             let black_bar = model.board.bar(Player::Black);
@@ -219,7 +282,36 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
             ])
             .color(color);
 
+        if let State::UserMove = model.state {
+            match model.pending_move_part {
+                Some(pending) => {
+                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from == pending && hm.to == Position::Board(23 - indx as u8)) {
+                        draw.polyline()
+                            .points_closed([
+                                (x, y),
+                                (x + tile_width, y),
+                                (x + tile_width / 2.0, y - tile_height),
+                            ])
+                            .color(nannou::color::WHITE);
+                    }
+                }
+                None if checkers < 0 => {
+                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from == Position::Board(23 - indx as u8))  {
+                        draw.polyline()
+                            .points_closed([
+                                (x, y),
+                                (x + tile_width, y),
+                                (x + tile_width / 2.0, y - tile_height),
+                            ])
+                            .color(nannou::color::WHITE);
+                    }
+                }
+                _ => (),
+            }
+        } 
+        
         if checkers != 0 {
+
             let color = if checkers > 0 { nannou::color::WHITE } else { nannou::color::RED };
             draw.ellipse()
                 .x_y(x + tile_width / 2.0, y - tile_height / 6.2)
@@ -245,16 +337,45 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
 
         let indx = if i < 6 { i + 12 } else { i + 11 };
         let checkers = model.board.checkers_on_position(indx);
+
+        if let State::UserMove = model.state {
+            match model.pending_move_part {
+                Some(pending) => {
+                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from == pending && hm.to == Position::Board(23 - indx as u8)) {
+                        draw.polyline()
+                            .points_closed([
+                                (x, y),
+                                (x + tile_width, y),
+                                (x + tile_width / 2.0, y + tile_height),
+                            ])
+                            .color(nannou::color::WHITE);
+                    }
+                }
+                None if checkers < 0 => {
+                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from == Position::Board(23 - indx as u8))  {
+                        draw.polyline()
+                            .points_closed([
+                                (x, y),
+                                (x + tile_width, y),
+                                (x + tile_width / 2.0, y + tile_height),
+                            ])
+                            .color(nannou::color::WHITE);
+                    }
+                }
+                _ => (),
+            }
+        } 
+        
         if checkers != 0 {
             let color = if checkers > 0 { nannou::color::WHITE } else { nannou::color::RED };
             draw.ellipse()
-                .x_y(x + tile_width / 2.0, y + tile_height / 7.8)
+                .x_y(x + tile_width / 2.0, y + tile_height / 6.0)
                 .w_h(tile_width * 0.7, tile_width * 0.7)
                 .color(color);
 
             let color = if checkers > 0 { nannou::color::BLACK } else { nannou::color::WHITE };
             draw.text(&checkers.abs().to_string())
-                .x_y(x + tile_width / 2.0, y + tile_height / 7.0)
+                .x_y(x + tile_width / 2.0, y + tile_height / 5.5)
                 .font_size(tile_width as u32 / 2)
                 .color(color);
         }
@@ -276,12 +397,14 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
                 draw.text(&dice.to_string())
                     .x_y(-board_rect.w() / 4.0 + board_rect.x(), board_rect.h() / 40.0)
                     .font_size(board_rect.w() as u32 / 10)
+                    .w(board_rect.w() / 2.0)
                     .color(nannou::color::WHITE);
             }
             Player::Black => {
                 draw.text(&dice.to_string())
                     .x_y(board_rect.w() / 4.0 + board_rect.x(), board_rect.h() / 40.0)
                     .font_size(board_rect.w() as u32 / 10)
+                    .w(board_rect.w() / 2.0)
                     .color(nannou::color::WHITE);
             }
         }
@@ -376,6 +499,7 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
 
     draw.to_frame(app, &frame).unwrap();
 }
+
 
 fn run_games() {
     let mut games = 0;

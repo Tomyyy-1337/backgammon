@@ -39,8 +39,10 @@ impl Board {
     }
 
     pub fn checkers_on_position(&self, position: u8) -> i8 {
-        let board = self.from_whites_perspective();
-        board.board[position as usize]
+        match self.active_player {
+            Player::White => self.board[position as usize],
+            Player::Black => -self.board[23 - position as usize],
+        }
     }
 
     pub fn bar(&self, player: Player) -> u8 {
@@ -146,6 +148,8 @@ impl Board {
         
         score += (self.active_home as i16 - self.inactive_home as i16) * 21;
 
+        score -= (self.active_bar as i16 - self.inactive_bar as i16) * 5;  
+
         score as f32
     }
 
@@ -184,7 +188,7 @@ impl Board {
         sum
     }
 
-    fn switch_player(&mut self) {
+    pub fn switch_player(&mut self) {
         self.active_player = match self.active_player {
             Player::White => Player::Black,
             Player::Black => Player::White,
@@ -229,7 +233,7 @@ impl Board {
     // Moves a checker from one position to another.
     // Fast but illegal moves can lead to undefined behavior.
     // Only use this function if you are sure the move is valid.
-    fn make_half_move_unchecked(&mut self, half_move: &HalfMove) {
+    pub fn make_half_move_unchecked(&mut self, half_move: &HalfMove) {
         match half_move.from {
             Position::Home => panic!("Cannot move from home position"),
             Position::Bar => self.active_bar -= 1,
@@ -267,7 +271,7 @@ impl Board {
         while !next_stack.is_empty() {
             stack.clear();
             for e in next_stack.iter() {
-                if stack.iter().find(|(_, board, _)| *board == e.1).is_none() {
+                if !stack.iter().any(|(_, _, mv)| mv.unordered_equal(&e.2)) {
                     stack.push(*e);
                 }
             }
@@ -298,7 +302,6 @@ impl Board {
             }
         }
         results
-
     }
 
     pub fn generate_half_moves(&self, dice: Dice) -> Vec<(HalfMove, Dice)> {
@@ -377,8 +380,8 @@ pub enum Position {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HalfMove {
-    from: Position,
-    to: Position,
+    pub from: Position,
+    pub to: Position,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -387,16 +390,33 @@ pub struct Move {
 }
 
 impl Move {
-    fn new() -> Self {
+    pub fn unordered_equal(&self, other: &Move) -> bool {
+        for half_move in self.half_moves.iter() {
+            if self.half_moves.iter().filter(|&hm| hm == half_move).count() != other.half_moves.iter().filter(|&&hm| hm == *half_move).count() {
+                return false;
+            }
+        }       
+        true
+    }
+
+    pub fn new() -> Self {
         Move { half_moves: TinyVector::new() }
     }
 
-    fn append(&mut self, half_move: HalfMove) {
+    pub fn append(&mut self, half_move: HalfMove) {
         self.half_moves.push(half_move);
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.half_moves.iter().count()
+    }
+
+    pub fn get_half_moves(&self) -> impl Iterator<Item = &HalfMove> {
+        self.half_moves.iter()
+    }
+
+    pub fn remove_half_move(&mut self, half_move: &HalfMove) {
+        self.half_moves.remove(half_move);
     }
 
     pub fn to_string(&self) -> String {
@@ -564,7 +584,9 @@ pub struct TinyVector<T, const N: usize> {
     len: u8,
 }
 
-impl<T, const N: usize> TinyVector<T, N> {
+impl<T, const N: usize> TinyVector<T, N> 
+where T: Clone + PartialEq 
+{
     pub fn new() -> Self {
         TinyVector {
             data: [const { None }; N],
@@ -601,6 +623,16 @@ impl<T, const N: usize> TinyVector<T, N> {
             self.data[index].as_ref()
         } else {
             None
+        }
+    }
+
+    pub fn remove(&mut self, element: &T) {
+        if let Some(pos) = self.data.iter().position(|x| x.as_ref() == Some(element)) {
+            self.data[pos] = None;
+            self.len -= 1;
+            for i in pos..(self.len as usize) {
+                self.data[i] = self.data[i + 1].take();
+            }
         }
     }
 }
