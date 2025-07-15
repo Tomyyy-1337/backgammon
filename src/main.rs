@@ -1,7 +1,8 @@
+#![windows_subsystem = "windows"]
+
 use backgammon::{engine::find_best_move, game::{self, Board, Dice, GameOutcome, HalfMove, Move, Player, Position}};
 use nannou::{color::WHITE, geom::Rect};
 use rand::{rng, seq::IteratorRandom};
-
 
 fn main() {
     // run_games();
@@ -21,7 +22,7 @@ struct Model {
     pending_move_part: Option<game::Position>,
     mous_is_down: bool,
     available_moves: Vec<game::Move>,
-    engine_thread: Option<std::thread::JoinHandle<()>>,
+    engine_thread: Option<std::thread::JoinHandle<game::Move>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -30,7 +31,7 @@ enum State {
     ShowStatus(u8),
     ChooseMove,
     ShowMove(u8),
-    UserMove
+    UserMove,
 }
 
 fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) {
@@ -53,6 +54,7 @@ fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) 
             model.state = State::UserMove;
             model.current_dice = Some(Dice::roll());
             model.available_moves = model.board.generage_moves(model.current_dice.unwrap());
+            outcome(model);
             return;
         }
         State::ShowMove(n) => {
@@ -60,50 +62,36 @@ fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) 
             return;
         }
         State::ChooseMove => {
-            match model.board.outcome() {
-                GameOutcome::Ongoing => (),
-                GameOutcome::Win(player) => {
-                    match player {
-                        Player::White => model.wins.0 += 1,
-                        Player::Black => model.wins.1 += 1,
+            match &model.engine_thread {
+                None => {
+                    let board = model.board.clone();
+                    let dice = model.current_dice.unwrap();
+                    model.engine_thread = Some(std::thread::spawn(move || {
+                        let best_move = match board.get_active_player() {
+                            Player::White => find_best_move(&board, dice, 2),
+                            Player::Black => choose_random_move(&board, dice),
+                        };
+                        best_move
+                    }));
+                },
+                Some(thread) => {
+                    if !thread.is_finished() {
+                        return;
                     }
-                    model.games_played += 1;
-                    model.board = Board::new();
-                }
-                GameOutcome::Gammon(player) => {
-                    model.board = Board::new();
-                    match player {
-                        Player::White => model.gammons.0 += 1,
-                        Player::Black => model.gammons.1 += 1,  
-                    }
-                    model.games_played += 1;
-                    model.board = Board::new();
-                }
-                GameOutcome::Backgammon(player) => {
-                    match player {
-                        Player::White => model.backgammons.0 += 1,
-                        Player::Black => model.backgammons.1 += 1,  
-                    }
-                    model.games_played += 1;
-                    model.board = Board::new();
+                    let thread = model.engine_thread.take().unwrap();
+                    let best_move = thread.join().expect("Failed to join engine thread");
+                    model.board.make_move_unchecked(best_move);
+
+                    model.state = State::ShowMove(100);
                 }
             }
-            
-            let best_move = match model.board.get_active_player() {
-                Player::White => find_best_move(&model.board, model.current_dice.unwrap(), 2),
-                Player::Black => choose_random_move(&model.board, model.current_dice.unwrap()),
-            };
-            
-            model.board.make_move_unchecked(best_move);
-
-            model.state = State::ShowMove(100);
         }
         State::UserMove => {
             if model.available_moves[0].len() == 0 {
                 model.state = State::RollDice;
                 model.board.switch_player();
             }
-            
+
             if model.available_moves.is_empty() {
                 model.state = State::RollDice;
                 model.board.make_move_unchecked(Move::new());
@@ -138,12 +126,74 @@ fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) 
                     }
                 }       
             }
-            
+            match model.board.outcome() {
+                GameOutcome::Ongoing => (),
+                GameOutcome::Win(player) => {
+                    match player {
+                        Player::White => model.wins.0 += 1,
+                        Player::Black => model.wins.1 += 1,
+                    }
+                    model.games_played += 1;
+                    model.board = Board::new();
+                }
+                GameOutcome::Gammon(player) => {
+                    model.board = Board::new();
+                    match player {
+                        Player::White => model.gammons.0 += 1,
+                        Player::Black => model.gammons.1 += 1,  
+                    }
+                    model.games_played += 1;
+                    model.board = Board::new();
+                }
+                GameOutcome::Backgammon(player) => {
+                    match player {
+                        Player::White => model.backgammons.0 += 1,
+                        Player::Black => model.backgammons.1 += 1,  
+                    }
+                    model.games_played += 1;
+                    model.board = Board::new();
+                }
+            }
+            outcome(model);
             return;
         }
     }
 
 
+}
+
+fn outcome(model: &mut Model) {
+    match model.board.outcome() {
+        GameOutcome::Ongoing => (),
+        GameOutcome::Win(player) => {
+            match player {
+                Player::White => model.wins.0 += 1,
+                Player::Black => model.wins.1 += 1,
+            }
+            model.games_played += 1;
+            model.board = Board::new();
+            model.state = State::RollDice;
+        }
+        GameOutcome::Gammon(player) => {
+            model.board = Board::new();
+            match player {
+                Player::White => model.gammons.0 += 1,
+                Player::Black => model.gammons.1 += 1,  
+            }
+            model.games_played += 1;
+            model.board = Board::new();
+            model.state = State::RollDice;
+        }
+        GameOutcome::Backgammon(player) => {
+            match player {
+                Player::White => model.backgammons.0 += 1,
+                Player::Black => model.backgammons.1 += 1,  
+            }
+            model.games_played += 1;
+            model.board = Board::new();
+            model.state = State::RollDice;
+        }
+    }
 }
 
 fn model(app: &nannou::App) -> Model {
