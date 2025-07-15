@@ -262,21 +262,13 @@ impl Board {
     }
 
     pub fn generage_moves(&self, dice: Dice) -> Vec<Move> {
-        let mut stack: Vec<(Dice, Board, Move)> = Vec::new();
-        let mut next_stack: Vec<(Dice, Board, Move)> = vec![(dice, *self, Move::new())];
+        let mut stack: Vec<(Dice, Board, Move)> = vec![(dice, *self, Move::new())];
+        let mut next_stack: Vec<(Dice, Board, Move)> = Vec::new();
         
         let mut best_result_len = 0;
         let mut results = Vec::new();
 
-        while !next_stack.is_empty() {
-            stack.clear();
-            for e in next_stack.iter() {
-                if !stack.iter().any(|(_, _, mv)| mv.unordered_equal(&e.2)) {
-                    stack.push(*e);
-                }
-            }
-            next_stack.clear();
-            
+        loop {
             while let Some((dice, board, previous_moves)) = stack.pop() {
                 let previous_moves_len = previous_moves.len();
                 if previous_moves_len > best_result_len {
@@ -300,13 +292,23 @@ impl Board {
                     next_stack.push((remaining_dice, board, mv));
                 }
             }
+            if next_stack.is_empty() {
+                break;
+            }
+            stack.clear();
+            for e in next_stack.iter() {
+                if !stack.iter().any(|(_, _, mv)| mv.unordered_equal(&e.2)) {
+                    stack.push(*e);
+                }
+            }
+            next_stack.clear();
         }
         results
     }
 
-    pub fn generate_half_moves(&self, dice: Dice) -> Vec<(HalfMove, Dice)> {
+    pub fn generate_half_moves(&self, dice: Dice) -> TinyVector<(HalfMove, Dice), 30> {
         let available_dice = dice.get_unique_value();
-        let mut half_moves = Vec::new();
+        let mut half_moves = TinyVector::new();
 
         if self.active_bar == 0 {
             for &die in available_dice.iter() {
@@ -391,12 +393,14 @@ pub struct Move {
 
 impl Move {
     pub fn unordered_equal(&self, other: &Move) -> bool {
+        let mut used: u8 = 0;
         for half_move in self.half_moves.iter() {
-            if self.half_moves.iter().filter(|&hm| hm == half_move).count() != other.half_moves.iter().filter(|&&hm| hm == *half_move).count() {
-                return false;
-            }
-        }       
-        true
+            match other.half_moves.iter().enumerate().position(|(i,&hm)| hm == *half_move && !used & (1 << i) != 0) {
+                Some(index) => used |= 1 << index,
+                None => return false,
+            }       
+        }
+        true 
     }
 
     pub fn new() -> Self {
@@ -608,6 +612,10 @@ where T: Clone + PartialEq
         } else {
             panic!("TinyVector is full");
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     pub fn len(&self) -> u8 {

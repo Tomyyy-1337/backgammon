@@ -1,4 +1,6 @@
-#![windows_subsystem = "windows"]
+// #![windows_subsystem = "windows"]
+
+use std::usize;
 
 use backgammon::{engine::find_best_move, game::{self, Board, Dice, GameOutcome, HalfMove, Move, Player, Position}};
 use nannou::{color::WHITE, geom::Rect};
@@ -7,6 +9,14 @@ use rand::{rng, seq::IteratorRandom};
 fn main() {
     // run_games();
     // benchmark();
+
+    let depth = 2;
+    println!("Starting performance test with depth {}", depth);
+    let board = Board::new();
+    let start = std::time::Instant::now();
+    let count = performance_test(&board, depth);
+    let duration = start.elapsed();
+    println!("Performance test completed in {:?} with {} moves evaluated", duration, count);
 
     nannou::app(model).update(update).run();
 }
@@ -35,7 +45,6 @@ enum State {
 }
 
 fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) {
-    let mouse_pos = mouse_pos_to_board_pos(app);
     match model.state {
         State::RollDice => {
             model.current_dice = Some(Dice::roll());
@@ -662,4 +671,20 @@ fn benchmark() {
     let duration = start.elapsed();
     println!("Best move: {}", m.to_string());
     println!("Best moves found in {:?} for depth {}", duration, depth);
+}
+
+fn performance_test(board: &Board, depth: u32) -> usize {
+    if depth == 0 {
+        return 1;
+    }
+    let mut sum = 0;
+    for dice in Dice::ALL {
+        let legal_moves = board.generage_moves(dice);
+        for mv in legal_moves {
+            let mut new_board = board.clone();
+            new_board.make_move_unchecked(mv);
+            sum += performance_test(&new_board, depth - 1);
+        }
+    }
+    sum
 }

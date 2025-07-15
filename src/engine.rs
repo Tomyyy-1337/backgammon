@@ -51,14 +51,14 @@ fn alpha_beta(board: &Board, depth: u8, mut alpha: f32, beta: f32, dice: Dice, s
         return cached_eval;
     }
     
-    let mut legal_moves = board.generage_moves(dice);
+    let legal_moves = board.generage_moves(dice);
     if legal_moves.is_empty() {
         return board.eval();
     }
 
-    legal_moves.sort_unstable_by_key(
-        |m| std::cmp::Reverse(board.captured_value(&m))
-    );
+    // legal_moves.sort_unstable_by_key(
+    //     |m| std::cmp::Reverse(board.captured_value(&m))
+    // );
 
     let mut best_eval = f32::NEG_INFINITY;
 
