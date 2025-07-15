@@ -129,31 +129,22 @@ impl Board {
             _ => {}
         }
 
-        let mut blocked = 0;
-        let mut single = 0;
         for (i, &checker) in self.board.iter().enumerate() {
             if checker > 0 {
                 let mult = i as i16 + 1;
                 score += checker as i16 * mult.min(19);
-                if checker == 1 {
-                    single += 1;
-                } else if i >= 17 {
-                    blocked += 1;
-                }
             } else if checker < 0 {
                 let mult = 24 - i as i16;
-                score += checker as i16 * mult.min(19);
-                if checker == -1 {
-                    single -= 1;
-                } else if i < 6 {
-                    blocked -= 1;
-                }                
+                score += checker as i16 * mult.min(19);         
             } 
+            if i >= 18 && checker >= 2 {
+                score += 1;
+            } else if i < 6 && checker <= -2 {
+                score -= 1;
+            }
         }
         
         score += (self.active_home as i16 - self.inactive_home as i16) * 21;
-        score -= single;
-        score += blocked;
 
         score as f32
     }
@@ -340,7 +331,22 @@ impl Board {
                             dice.use_die(die),
                         ));
                     }
-                     
+                }
+                if half_moves.is_empty() {
+                    for &die in available_dice.iter() {
+                        let indx = 6 - die as usize;
+                        for (i,v) in self.active_home_board()[indx..].iter().enumerate() {
+                            if *v > 0 {
+                                half_moves.push((
+                                    HalfMove {
+                                        from: Position::Board(18 + indx as u8 + i as u8),
+                                        to: Position::Home,
+                                    },
+                                    dice.use_die(die),
+                                ));
+                            }
+                        }
+                    }
                 }
             }
         } else {

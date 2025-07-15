@@ -1,6 +1,6 @@
 use std::thread::sleep;
 
-use backgammon::{engine::{find_best_move}, game::{self, Board, Dice, GameOutcome, Player}};
+use backgammon::{engine::find_best_move, game::{self, Board, Dice, GameOutcome, Player, Position}};
 use nannou::{color::{self, BLACK, WHITE}, geom::Rect};
 use rand::{rng, seq::IteratorRandom};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -24,32 +24,42 @@ struct Model {
     state: State,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum State {
     RollDice,
     ShowStatus(u8),
     ChooseMove,
+    ShowMove(u8)
 }
 
-fn update(_app: &nannou::App, model: &mut Model, _update: nannou::event::Update) {
+fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) {
+    let mouse_pos = mouse_pos_to_board_pos(app);
     match model.state {
         State::RollDice => {
             model.current_dice = Some(Dice::roll());
-            model.state = State::ShowStatus(0);
+            model.state = State::ShowStatus(30);
             return;
         }
-        State::ShowStatus(n) if n == 30 => {
+        State::ShowStatus(n) if n == 0 => {
             model.state = State::ChooseMove;
             return;
         }
         State::ShowStatus(n) => {
-            model.state = State::ShowStatus(n + 1);
+            model.state = State::ShowStatus(n - 1);
+            return;
+        }
+        State::ShowMove(n) if n == 0 => {
+            model.state = State::RollDice;
+            return;
+        }
+        State::ShowMove(n) => {
+            model.state = State::ShowMove(n - 1);
             return;
         }
         State::ChooseMove => {
-            model.state = State::RollDice;
+            model.state = State::ShowMove(10);
         }
     }
-
 
     match model.board.outcome() {
         GameOutcome::Ongoing => (),
@@ -84,8 +94,6 @@ fn update(_app: &nannou::App, model: &mut Model, _update: nannou::event::Update)
         Player::White => find_best_move(&model.board, model.current_dice.unwrap(), 2),
         Player::Black => choose_random_move(&model.board, model.current_dice.unwrap()),
     };
-
-    model.current_dice = None;
     
     model.board.make_move_unchecked(best_move);
 }
@@ -104,6 +112,36 @@ fn model(app: &nannou::App) -> Model {
         backgammons: (0, 0),
         current_dice: None, 
         state: State::RollDice,
+    }
+}
+
+fn mouse_pos_to_board_pos(app: &nannou::App) -> Option<Position> {
+    let mouse = app.mouse.position();
+    let window_rect = app.window_rect();
+    let (width, height) = (window_rect.w(), window_rect.h());
+    let (center_x, center_y) = (window_rect.x(), window_rect.y());
+
+    let stats_rect_width = 320.0;
+    let board_rect = Rect::from_w_h(width - stats_rect_width, height).shift_x(center_x - stats_rect_width / 2.0).shift_y(center_y);
+
+    let x = mouse.x - board_rect.left(); 
+    let y = mouse.y - center_y;
+
+    let tile_width = board_rect.w() / 13.0;
+    let tile_index = x as usize / tile_width as usize;
+
+    if tile_index >= 13 {
+        return None; 
+    }
+
+    if tile_index == 6 {
+        return Some(Position::Bar);
+    } else if y > 0.0 {
+        let indx = if tile_index < 6 { 11 - tile_index } else { 12 - tile_index };
+        return Some(Position::Board(indx as u8));
+    } else {
+        let indx = if tile_index < 6 { tile_index + 12 } else { tile_index + 11 };
+        return Some(Position::Board(indx as u8));
     }
 }
 
@@ -224,7 +262,16 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
 
     // Draw dice 
     if let Some(dice) = model.current_dice {
-        match model.board.active_player() {
+        let inverted = match model.state {
+            State::ShowMove(_) => true,
+            State::RollDice => true,
+            _ => false,
+        };
+        let player = match model.board.active_player() {
+            Player::White => if inverted { Player::Black } else { Player::White },
+            Player::Black => if inverted { Player::White } else { Player::Black },
+        };
+        match player {
             Player::White => {
                 draw.text(&dice.to_string())
                     .x_y(-board_rect.w() / 4.0 + board_rect.x(), board_rect.h() / 40.0)
