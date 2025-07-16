@@ -128,20 +128,19 @@ impl Board {
         for (i, &checker) in self.board.iter().enumerate() {
             if checker > 0 {
                 let mult = i as i16 + 1;
-                score += checker as i16 * mult.min(19);
+                score += checker as i16 * mult.min(19).max(6);
             } else if checker < 0 {
                 let mult = 24 - i as i16;
-                score += checker as i16 * mult.min(19);         
+                score += checker as i16 * mult.min(19).max(6);         
             } 
             if i >= 18 && checker >= 2 {
-                score += 1;
+                score += 3;
             } else if i < 6 && checker <= -2 {
-                score -= 1;
+                score -= 3;
             }
         }
         
-        score += (self.active_home as i16 - self.inactive_home as i16) * 21;
-        score -= (self.active_bar as i16 - self.inactive_bar as i16) * 5;  
+        score += (self.active_home as i16 - self.inactive_home as i16) * 25;
 
         score as f32
     }

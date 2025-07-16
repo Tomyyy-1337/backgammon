@@ -20,12 +20,11 @@ pub fn find_best_move(board: &Board, dice: Dice, depth: u8) -> Move {
             (m, eval)
         })
         .collect::<Vec<_>>();
-
-    let best_move = evals.into_iter()
-        .max_by(|(_, eval1), (_, eval2)| eval1.partial_cmp(eval2).unwrap())
-        .expect("No moves available");
-
-    best_move.0
+        
+        let best_move = evals.into_iter()
+            .max_by(|(_, eval1), (_, eval2)| eval1.partial_cmp(eval2).unwrap())
+            .expect("No moves available");
+        best_move.0
 }
 
 pub fn search_eval(board: &Board, depth: u8) -> f32 {
