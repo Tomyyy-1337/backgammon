@@ -18,6 +18,7 @@ impl Player {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameOutcome {
     Win(Player),
     Gammon(Player),
@@ -367,7 +368,7 @@ pub enum PositionEnum {
     Board(u8),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
     position: NonZeroU8,
 }
@@ -389,13 +390,13 @@ impl Position {
     } 
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HalfMoveEnum {
     pub from: Position,
     pub to: Position,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Move {
     half_moves: TinyVector<HalfMoveEnum, 4>,
 }

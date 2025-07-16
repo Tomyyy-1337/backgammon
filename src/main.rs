@@ -1,8 +1,8 @@
-// #![windows_subsystem = "windows"]
+#![windows_subsystem = "windows"]
 
 use std::usize;
 
-use backgammon::{engine::find_best_move, game::{self, Board, Dice, GameOutcome, HalfMoveEnum, Move, Player, Position, PositionEnum}};
+use backgammon::{engine::{find_best_move, monte_carlo_search}, game::{self, Board, Dice, GameOutcome, HalfMoveEnum, Move, Player, Position, PositionEnum}};
 use nannou::{color::WHITE, geom::Rect, wgpu::Backends};
 use rand::{rng, seq::IteratorRandom};
 
@@ -75,11 +75,12 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
                     let board = model.board.clone();
                     let dice = model.current_dice.unwrap();
                     model.engine_thread = Some(std::thread::spawn(move || {
-                        let best_move = match board.get_active_player() {
-                            Player::White => find_best_move(&board, dice, 2),
-                            Player::Black => choose_random_move(&board, dice),
-                        };
-                        best_move
+                        // let best_move = match board.get_active_player() {
+                        //     Player::White => find_best_move(&board, dice, 2),
+                        //     Player::Black => choose_random_move(&board, dice),
+                        // };
+                        // best_move
+                        monte_carlo_search(&board, dice, 400, 20)
                     }));
                 },
                 Some(thread) => {
@@ -589,8 +590,8 @@ fn run_games() {
 
                     let start = std::time::Instant::now();
                     let mv = match board.get_active_player() {
-                        Player::White => find_best_move(&board, dice, 2),
-                        Player::Black => choose_random_move(&board, dice),
+                        Player::White => find_best_move(&board, dice, 1),
+                        Player::Black => monte_carlo_search(&board, dice, 400, 20),
                     };
                     let duration = start.elapsed();
                     println!("{:?} moved {}", board.get_active_player(), mv.to_string());   
