@@ -368,18 +368,22 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
         } 
         
         if checkers != 0 {
-
             let color = if checkers > 0 { nannou::color::WHITE } else { nannou::color::RED };
-            draw.ellipse()
-                .x_y(x + tile_width / 2.0, y - tile_height / 6.2)
-                .w_h(tile_width * 0.7, tile_width * 0.7)
-                .color(color);
+            for i in 0..checkers.abs().min(5) {
+                let y =  y - tile_width * 0.5 * (i as f32 + 0.5) - 5.0;
+                draw.ellipse()
+                    .x_y(x + tile_width / 2.0, y)
+                    .w_h(tile_width * 0.5, tile_width * 0.5)
+                    .color(color);
+            }
 
-            let color = if checkers > 0 { nannou::color::BLACK } else { nannou::color::WHITE };
-            draw.text(&checkers.abs().to_string())
-                .x_y(x + tile_width / 2.0, y - tile_height / 7.0)
-                .font_size(tile_width as u32 / 2)
-                .color(color);
+            if checkers.abs() > 5 {
+                let y = y - tile_width * 0.20 - 5.0;
+                draw.text(&format!("+{}", &(checkers.abs()-5).to_string()))
+                    .x_y(x + tile_width / 2.0, y)
+                    .font_size(tile_width as u32 / 3)
+                    .color(if checkers > 0 { nannou::color::BLACK } else { nannou::color::WHITE });
+            }
         }
 
         let y = board_rect.bottom();
@@ -425,16 +429,21 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
         
         if checkers != 0 {
             let color = if checkers > 0 { nannou::color::WHITE } else { nannou::color::RED };
-            draw.ellipse()
-                .x_y(x + tile_width / 2.0, y + tile_height / 6.0)
-                .w_h(tile_width * 0.7, tile_width * 0.7)
+            for i in 0..checkers.abs().min(5) {
+                let y = y + tile_width * 0.5 * (i as f32 + 0.5) + 5.0;
+                draw.ellipse()
+                .x_y(x + tile_width / 2.0, y)
+                .w_h(tile_width * 0.5, tile_width * 0.5)
                 .color(color);
-
-            let color = if checkers > 0 { nannou::color::BLACK } else { nannou::color::WHITE };
-            draw.text(&checkers.abs().to_string())
-                .x_y(x + tile_width / 2.0, y + tile_height / 5.5)
-                .font_size(tile_width as u32 / 2)
-                .color(color);
+        }
+        
+        if checkers.abs() > 5 {
+            let y = y + tile_width * 0.28 + 5.0;
+            draw.text(&format!("+{}", &(checkers.abs()-5).to_string()))
+                .x_y(x + tile_width / 2.0, y)
+                .font_size(tile_width as u32 / 3)
+                .color(if checkers > 0 { nannou::color::BLACK } else { nannou::color::WHITE });
+            }
         }
     }
 
