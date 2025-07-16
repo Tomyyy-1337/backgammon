@@ -10,13 +10,13 @@ fn main() {
     // run_games();
     // benchmark();
 
-    let depth = 2;
-    println!("Starting performance test with depth {}", depth);
-    let board = Board::new();
-    let start = std::time::Instant::now();
-    let count = performance_test(&board, depth);
-    let duration = start.elapsed();
-    println!("Performance test completed in {:?} with {} moves evaluated", duration, count);
+    // let depth = 2;
+    // println!("Starting performance test with depth {}", depth);
+    // let board = Board::new();
+    // let start = std::time::Instant::now();
+    // let count = performance_test(&board, depth);
+    // let duration = start.elapsed();
+    // println!("Performance test completed in {:?} with {} moves evaluated", duration, count);
 
     nannou::app(model).backends(Backends::DX12).update(update).run();
 }
@@ -38,37 +38,36 @@ struct Model {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum State {
     RollDice,
-    ShowStatus(u8),
     ChooseMove,
-    ShowMove(u8),
+    ShowMove{
+        mv: Move,
+        indx: usize,
+        timer: u8,
+    },
     UserMove,
 }
 
-fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) {
+fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
+    let frames_per_second = (1.0 / update.since_last.as_secs_f32()) as usize;
+
     match model.state {
         State::RollDice => {
             model.current_dice = Some(Dice::roll());
-            model.state = State::ShowStatus(100);
-            return;
-        }
-        State::ShowStatus(n) if n == 0 => {
             model.state = State::ChooseMove;
-            return;
         }
-        State::ShowStatus(n) => {
-            model.state = State::ShowStatus(n - 1);
-            return;
-        }
-        State::ShowMove(n) if n == 0 => {
+        State::ShowMove{mv, indx, timer} if indx == mv.len() && timer == 0 => {
+            model.board.switch_player();
             model.state = State::UserMove;
             model.current_dice = Some(Dice::roll());
             model.available_moves = model.board.generage_moves(model.current_dice.unwrap());
             outcome(model);
-            return;
         }
-        State::ShowMove(n) => {
-            model.state = State::ShowMove(n - 1);
-            return;
+        State::ShowMove{mv, indx, timer} if timer == 0 => {
+            model.board.make_half_move_unchecked(mv.get_half_moves().nth(indx).unwrap());
+            model.state = State::ShowMove{mv, timer: (frames_per_second / 2) as u8, indx: indx + 1};
+        }
+        State::ShowMove{mv, indx, timer} => {
+            model.state = State::ShowMove{mv, indx, timer: timer - 1};
         }
         State::ChooseMove => {
             match &model.engine_thread {
@@ -89,9 +88,9 @@ fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) 
                     }
                     let thread = model.engine_thread.take().unwrap();
                     let best_move = thread.join().expect("Failed to join engine thread");
-                    model.board.make_move_unchecked(best_move);
+                    // model.board.make_move_unchecked(best_move);
 
-                    model.state = State::ShowMove(100);
+                    model.state = State::ShowMove{mv: best_move, indx: 0, timer: (frames_per_second / 2) as u8};
                 }
             }
         }
@@ -164,7 +163,6 @@ fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) 
                 }
             }
             outcome(model);
-            return;
         }
     }
 
@@ -443,7 +441,6 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
     // Draw dice 
     if let Some(dice) = model.current_dice {
         let inverted = match model.state {
-            State::ShowMove(_) => true,
             State::RollDice => true,
             _ => false,
         };

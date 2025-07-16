@@ -141,7 +141,6 @@ impl Board {
         }
         
         score += (self.active_home as i16 - self.inactive_home as i16) * 21;
-
         score -= (self.active_bar as i16 - self.inactive_bar as i16) * 5;  
 
         score as f32
@@ -198,7 +197,6 @@ impl Board {
             self.board[j] = a;
         }
         
-
         swap(&mut self.active_bar, &mut self.inactive_bar);
         swap(&mut self.active_home, &mut self.inactive_home);
     }
@@ -218,10 +216,7 @@ impl Board {
     }
 
     fn can_bear_off(&self) -> bool {
-        let bar_is_empty = self.active_bar == 0;
-        let checkers_in_home_board = self.active_home_board().iter().filter(|&&a| a > 0).sum::<i8>();
-        
-        bar_is_empty && checkers_in_home_board + self.active_home as i8 == 15
+        self.active_bar == 0 && self.active_home_board().iter().filter(|&&a| a > 0).sum::<i8>() + self.active_home as i8 == 15
     }
 
     // Moves a checker from one position to another.
@@ -287,12 +282,11 @@ impl Board {
                 break;
             }
             stack.clear();
-            for e in next_stack.iter() {
+            for e in next_stack.drain(..) {
                 if !stack.iter().any(|(_, _, mv)| mv.unordered_equal(&e.2)) {
-                    stack.push(*e);
+                    stack.push(e);
                 }
             }
-            next_stack.clear();
         }
         results
     }
