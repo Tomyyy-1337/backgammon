@@ -1,4 +1,4 @@
-use std::mem::swap;
+use std::{mem::swap, num::NonZeroU8};
 
 use rand::random_range;
 
@@ -6,6 +6,15 @@ use rand::random_range;
 pub enum Player {
     White,
     Black,
+}
+
+impl Player {
+    pub fn opposite(&self) -> Player {
+        match self {
+            Player::White => Player::Black,
+            Player::Black => Player::White,
+        }
+    }
 }
 
 pub enum GameOutcome {
@@ -82,32 +91,17 @@ impl Board {
     }
 
     pub fn outcome(&self) -> GameOutcome {
-        if self.active_home == 15 {
-            if self.inactive_home == 0 {
-                if self.inactive_bar == 0 && self.active_home_board().iter().filter(|&&a| a < 0).sum::<i8>() == 0 {
-                    return GameOutcome::Gammon(self.active_player);
-                } else {
-                    return GameOutcome::Backgammon(self.active_player);
-                }
-            } else {
-                return GameOutcome::Win(self.active_player);
-            }
-        } else if self.inactive_home == 15 {
-            let inactive_player = match self.active_player {
-                Player::White => Player::Black,
-                Player::Black => Player::White,
-            };
-            if self.active_home == 0 {
-                if self.active_bar == 0 && self.inactive_home_board().iter().filter(|&&a| a > 0).sum::<i8>() == 0 {
-                    return GameOutcome::Gammon(inactive_player);
-                } else {
-                    return GameOutcome::Backgammon(inactive_player);
-                }
-            } else {
-                return GameOutcome::Win(inactive_player);
-            }
-        } else {
-            return GameOutcome::Ongoing;
+        let active_home_clear = || self.active_home_board().iter().filter(|&&a| a < 0).sum::<i8>() == 0;
+        let inactive_home_clear = || self.inactive_home_board().iter().filter(|&&a| a > 0).sum::<i8>() == 0;
+
+        match (self.active_home, self.inactive_home) {
+            (15, 0) if self.inactive_bar == 0 && active_home_clear() => GameOutcome::Gammon(self.active_player),
+            (15, 0) => GameOutcome::Backgammon(self.active_player),
+            (15, _) => GameOutcome::Win(self.active_player),
+            (0, 15) if self.active_bar == 0 && inactive_home_clear() => GameOutcome::Gammon(self.active_player.opposite()),
+            (0, 15) => GameOutcome::Backgammon(self.active_player.opposite()),
+            (_, 15) => GameOutcome::Win(self.active_player.opposite()),               
+            _ => GameOutcome::Ongoing,
         }
     }
 
@@ -179,8 +173,8 @@ impl Board {
         let mut sum = 0;
         for half_move in m.half_moves.iter() {
             let HalfMove { to, ..} = half_move;
-            match to {
-                Position::Board(n) if self.board[*n as usize] == -1 => sum += *n + 1,
+            match to.to_enum() {
+                PositionEnum::Board(n) if self.board[n as usize] == -1 => sum += n + 1,
                 _ => (),
             }
         }
@@ -234,22 +228,19 @@ impl Board {
     // Fast but illegal moves can lead to undefined behavior.
     // Only use this function if you are sure the move is valid.
     pub fn make_half_move_unchecked(&mut self, half_move: &HalfMove) {
-        match half_move.from {
-            Position::Home => panic!("Cannot move from home position"),
-            Position::Bar => self.active_bar -= 1,
-            Position::Board(from) => self.board[from as usize] -= 1,
+        match half_move.from.to_enum() {
+            PositionEnum::Home => panic!("Cannot move from home position"),
+            PositionEnum::Bar => self.active_bar -= 1,
+            PositionEnum::Board(from) => self.board[from as usize] -= 1,
         }
-        match half_move.to {
-            Position::Home => self.active_home += 1,
-            Position::Bar => panic!("Cannot move to bar position"),
-            Position::Board(to) => {
-                if self.board[to as usize] == -1 {
-                    self.board[to as usize] = 1;
-                    self.inactive_bar += 1;
-                } else {
-                    self.board[to as usize] += 1;
-                }
+        match half_move.to.to_enum() {
+            PositionEnum::Home => self.active_home += 1,
+            PositionEnum::Bar => panic!("Cannot move to bar position"),
+            PositionEnum::Board(to) if self.board[to as usize] == -1 => {
+                self.board[to as usize] = 1;
+                self.inactive_bar += 1;
             },
+            PositionEnum::Board(to) => self.board[to as usize] += 1,
         }
     }
 
@@ -316,8 +307,8 @@ impl Board {
                     if self.board[i] > 0 && self.board[i + die as usize] >= -1 {
                         half_moves.push((
                             HalfMove {
-                                from: Position::Board(i as u8),
-                                to: Position::Board((i + die as usize) as u8),
+                                from: Position::from_enum(PositionEnum::Board(i as u8)),
+                                to: Position::from_enum(PositionEnum::Board((i + die as usize) as u8)),
                             },
                             dice.use_die(die),
                         ));
@@ -330,8 +321,8 @@ impl Board {
                     if self.active_home_board()[indx] > 0 {
                         half_moves.push((
                             HalfMove {
-                                from: Position::Board(24 - die),
-                                to: Position::Home,
+                                from: Position::from_enum(PositionEnum::Board(24 - die)),
+                                to: Position::from_enum(PositionEnum::Home),
                             },
                             dice.use_die(die),
                         ));
@@ -344,8 +335,8 @@ impl Board {
                             if *v > 0 {
                                 half_moves.push((
                                     HalfMove {
-                                        from: Position::Board(18 + indx as u8 + i as u8),
-                                        to: Position::Home,
+                                        from: Position::from_enum(PositionEnum::Board(18 + indx as u8 + i as u8)),
+                                        to: Position::from_enum(PositionEnum::Home),
                                     },
                                     dice.use_die(die),
                                 ));
@@ -359,8 +350,8 @@ impl Board {
                 if self.inactive_home_board()[die as usize - 1] >= -1 {
                     half_moves.push((
                         HalfMove {
-                            from: Position::Bar,
-                            to: Position::Board(die - 1),
+                            from: Position::from_enum(PositionEnum::Bar),
+                            to: Position::from_enum(PositionEnum::Board(die - 1)),
                         },
                         dice.use_die(die),
                     ));
@@ -374,10 +365,32 @@ impl Board {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Position {
+pub enum PositionEnum {
     Home,
     Bar,
     Board(u8),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Position {
+    position: NonZeroU8,
+}
+
+impl Position {
+    pub fn from_enum(position: PositionEnum) -> Self {
+        match position {
+            PositionEnum::Board(n) => Position { position: NonZeroU8::new(n+1).unwrap() },
+            PositionEnum::Bar => Position { position: NonZeroU8::new(254).unwrap() },
+            PositionEnum::Home => Position { position: NonZeroU8::new(255).unwrap() },
+        }
+    }
+    pub fn to_enum(&self) -> PositionEnum {
+        match self.position.get() {
+            255 => PositionEnum::Home,
+            254 => PositionEnum::Bar,
+            n => PositionEnum::Board(n - 1),
+        }
+    } 
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -426,16 +439,16 @@ impl Move {
     pub fn to_string(&self) -> String {
         let mut result = String::new();
         for half_move in self.half_moves.iter() {
-            match half_move.from {
-                Position::Home => result.push_str("H"),
-                Position::Bar => result.push_str("B"),
-                Position::Board(from) => result.push_str(&(from + 1).to_string()),
+            match half_move.from.to_enum() {
+                PositionEnum::Home => result.push_str("H"),
+                PositionEnum::Bar => result.push_str("B"),
+                PositionEnum::Board(from) => result.push_str(&(from + 1).to_string()),
             }
             result.push_str(" -> ");
-            match half_move.to {
-                Position::Home => result.push_str("H"),
-                Position::Bar => result.push_str("B"),
-                Position::Board(to) => result.push_str(&(to + 1).to_string()),
+            match half_move.to.to_enum() {
+                PositionEnum::Home => result.push_str("H"),
+                PositionEnum::Bar => result.push_str("B"),
+                PositionEnum::Board(to) => result.push_str(&(to + 1).to_string()),
             }
             result.push_str(", ");
         }

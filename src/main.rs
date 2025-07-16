@@ -2,8 +2,8 @@
 
 use std::usize;
 
-use backgammon::{engine::find_best_move, game::{self, Board, Dice, GameOutcome, HalfMove, Move, Player, Position}};
-use nannou::{color::WHITE, geom::Rect};
+use backgammon::{engine::find_best_move, game::{self, Board, Dice, GameOutcome, HalfMove, Move, Player, Position, PositionEnum}};
+use nannou::{color::WHITE, geom::Rect, wgpu::Backends};
 use rand::{rng, seq::IteratorRandom};
 
 fn main() {
@@ -18,7 +18,7 @@ fn main() {
     let duration = start.elapsed();
     println!("Performance test completed in {:?} with {} moves evaluated", duration, count);
 
-    nannou::app(model).update(update).run();
+    nannou::app(model).backends(Backends::DX12).update(update).run();
 }
 
 struct Model {
@@ -29,7 +29,7 @@ struct Model {
     backgammons: (u32, u32),
     current_dice: Option<Dice>,
     state: State,
-    pending_move_part: Option<game::Position>,
+    pending_move_part: Option<game::PositionEnum>,
     mous_is_down: bool,
     available_moves: Vec<game::Move>,
     engine_thread: Option<std::thread::JoinHandle<game::Move>>,
@@ -116,8 +116,8 @@ fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) 
                 }
                 model.mous_is_down = true;
                 if let Some(pending) = model.pending_move_part {
-                    if model.available_moves.iter().flat_map(|m|m.get_half_moves()).any(|m| m.to == current_mouse_pos && m.from == pending) {
-                        let halfmove = HalfMove { from: pending, to: current_mouse_pos };
+                    if model.available_moves.iter().flat_map(|m|m.get_half_moves()).any(|m| m.to == current_mouse_pos && m.from == Position::from_enum(pending)) {
+                        let halfmove = HalfMove { from: Position::from_enum(pending), to: current_mouse_pos };
                         model.pending_move_part = None;
                         model.board.make_half_move_unchecked(&halfmove);
                         model.available_moves = model.available_moves.drain(..)
@@ -131,7 +131,7 @@ fn update(app: &nannou::App, model: &mut Model, _update: nannou::event::Update) 
                     }
                 } else {
                     if model.available_moves.iter().flat_map(|m|m.get_half_moves()).any(|m| m.from == current_mouse_pos) {
-                        model.pending_move_part = Some(current_mouse_pos);
+                        model.pending_move_part = Some(current_mouse_pos.to_enum());
                     }
                 }       
             }
@@ -242,17 +242,17 @@ fn mouse_pos_to_board_pos(app: &nannou::App) -> Option<Position> {
     let tile_index = x as usize / tile_width as usize;
 
     if tile_index >= 13 {
-        return Some(Position::Home);
+        return Some(Position::from_enum(PositionEnum::Home));
     }
 
     if tile_index == 6 {
-        return Some(Position::Bar);
+        return Some(Position::from_enum(PositionEnum::Bar));
     } else if y > 0.0 {
         let indx = if tile_index < 6 { tile_index + 12 } else { tile_index + 11 };
-        return Some(Position::Board(indx as u8));
+        return Some(Position::from_enum(PositionEnum::Board(indx as u8)));
     } else {
         let indx = if tile_index < 6 { 11 - tile_index } else { 12 - tile_index };
-        return Some(Position::Board(indx as u8));
+        return Some(Position::from_enum(PositionEnum::Board(indx as u8)));
     } 
 }
 
@@ -305,22 +305,22 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
 
             if white_bar > 0 {
                 draw.ellipse()
-                    .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.top() - tile_height / 1.95)
+                    .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.top() - board_rect.h() / 3.9)
                     .w_h(tile_width * 0.7, tile_width * 0.7)
                     .color(nannou::color::WHITE);
                 draw.text(&white_bar.to_string())
-                    .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.top() - tile_height / 2.0)
+                    .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.top() - board_rect.h() / 4.0)
                     .font_size(tile_width as u32 / 2)
                     .color(nannou::color::BLACK);
             }
 
             if black_bar > 0 {
                 draw.ellipse()
-                    .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.bottom() + tile_height / 2.05)
+                    .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.bottom() + board_rect.h() / 4.1)
                     .w_h(tile_width * 0.7, tile_width * 0.7)
                     .color(nannou::color::RED);
                 draw.text(&black_bar.to_string())
-                    .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.bottom() + tile_height / 2.0)
+                    .x_y(board_rect.left() + i as f32 * tile_width + tile_width / 2.0, board_rect.bottom() + board_rect.h() / 4.0)
                     .font_size(tile_width as u32 / 2)
                     .color(nannou::color::WHITE);
             }
@@ -344,7 +344,7 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
         if let State::UserMove = model.state {
             match model.pending_move_part {
                 Some(pending) => {
-                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from == pending && hm.to == Position::Board(23 - indx as u8)) {
+                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from.to_enum() == pending && hm.to.to_enum() == PositionEnum::Board(23 - indx as u8)) {
                         draw.polyline()
                             .points_closed([
                                 (x, y),
@@ -355,7 +355,7 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
                     }
                 }
                 None if checkers < 0 => {
-                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from == Position::Board(23 - indx as u8))  {
+                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from.to_enum() == PositionEnum::Board(23 - indx as u8))  {
                         draw.polyline()
                             .points_closed([
                                 (x, y),
@@ -400,7 +400,7 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
         if let State::UserMove = model.state {
             match model.pending_move_part {
                 Some(pending) => {
-                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from == pending && hm.to == Position::Board(23 - indx as u8)) {
+                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from.to_enum() == pending && hm.to.to_enum() == PositionEnum::Board(23 - indx as u8)) {
                         draw.polyline()
                             .points_closed([
                                 (x, y),
@@ -411,7 +411,7 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
                     }
                 }
                 None if checkers < 0 => {
-                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from == Position::Board(23 - indx as u8))  {
+                    if model.available_moves.iter().flat_map(|m| m.get_half_moves()).any(|hm| hm.from.to_enum() == PositionEnum::Board(23 - indx as u8))  {
                         draw.polyline()
                             .points_closed([
                                 (x, y),
