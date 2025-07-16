@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+// #![windows_subsystem = "windows"]
 
 use std::usize;
 
@@ -80,7 +80,7 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
                         //     Player::Black => choose_random_move(&board, dice),
                         // };
                         // best_move
-                        monte_carlo_search(&board, dice, 400, 20)
+                        monte_carlo_search(&board, dice, 1000, 20)
                     }));
                 },
                 Some(thread) => {
@@ -578,29 +578,29 @@ fn run_games() {
         let mut board = Board::new();
         games += 1;
         loop {
-            print!("=========================================================\n");
-            println!("{}", board.to_fancy_string());
-            print!("Curent Evaluation: {}\n", board.eval_absolute());
-            println!("White Home: {}, White Bar: {}, Black Home: {}, Black Bar: {}", board.home(Player::White), board.bar(Player::White), board.home(Player::Black), board.bar(Player::Black));              
+            // print!("=========================================================\n");
+            // println!("{}", board.to_fancy_string());
+            // print!("Curent Evaluation: {}\n", board.eval_absolute());
+            // println!("White Home: {}, White Bar: {}, Black Home: {}, Black Bar: {}", board.home(Player::White), board.bar(Player::White), board.home(Player::Black), board.bar(Player::Black));              
             match board.outcome() {
                 GameOutcome::Ongoing => {
                     let dice = Dice::roll();
                     
-                    println!("{:?} rolled {}", board.get_active_player(), dice.to_string());
+                    // println!("{:?} rolled {}", board.get_active_player(), dice.to_string());
 
-                    let start = std::time::Instant::now();
+                    // let start = std::time::Instant::now();
                     let mv = match board.get_active_player() {
-                        Player::White => find_best_move(&board, dice, 1),
-                        Player::Black => monte_carlo_search(&board, dice, 400, 20),
+                        Player::Black => monte_carlo_search(&board, dice, 2000, 20),
+                        Player::White => monte_carlo_search(&board, dice, 10000, 20),
                     };
-                    let duration = start.elapsed();
-                    println!("{:?} moved {}", board.get_active_player(), mv.to_string());   
-                    println!("Move evaluation took: {:?}", duration);
+                    // let duration = start.elapsed();
+                    // println!("{:?} moved {}", board.get_active_player(), mv.to_string());   
+                    // println!("Move evaluation took: {:?}", duration);
                     
                     board.make_move_unchecked(mv);
                 }
                 GameOutcome::Win(player) => {
-                    println!("Player {:?} wins!", player);
+                    // println!("Player {:?} wins!", player);
                     match player {
                         Player::White => white_wins += 1,
                         Player::Black => black_wins += 1,
@@ -608,7 +608,7 @@ fn run_games() {
                     break;
                 }
                 GameOutcome::Gammon(player) => {
-                    println!("Player {:?} wins with a gammon!", player);
+                    // println!("Player {:?} wins with a gammon!", player);
                     match player {
                         Player::White => white_gammon += 1,
                         Player::Black => black_gammon += 1,
@@ -616,7 +616,7 @@ fn run_games() {
                     break;
                 }
                 GameOutcome::Backgammon(player) => {
-                    println!("Player {:?} wins with a backgammon!", player);
+                    // println!("Player {:?} wins with a backgammon!", player);
                     match player {
                         Player::White => white_backgammon += 1,
                         Player::Black => black_backgammon += 1,
@@ -631,12 +631,12 @@ fn run_games() {
         let white_backgammon_rate = white_backgammon as f32 / games as f32 * 100.0;
         let black_gammon_rate = black_gammon as f32 / games as f32 * 100.0;
         let black_backgammon_rate = black_backgammon as f32 / games as f32 * 100.0;
-        println!("============================================");
-        println!("Games: {}, White Wins: {}, Black Wins: {}", games, white_wins + white_gammon + white_backgammon, black_wins + black_gammon + black_backgammon);
-        println!("White Win Rate: {:.2}%, Black Win Rate: {:.2}%", white_win_rate, black_win_rate);
-        println!("White Gammon Rate: {:.2}%, White Backgammon Rate: {:.2}%", white_gammon_rate, white_backgammon_rate);
-        println!("Black Gammon Rate: {:.2}%, Black Backgammon Rate: {:.2}%", black_gammon_rate, black_backgammon_rate);
-        println!("============================================");
+        // println!("============================================");
+        // println!("Games: {}, White Wins: {}, Black Wins: {}", games, white_wins + white_gammon + white_backgammon, black_wins + black_gammon + black_backgammon);
+        // println!("White Win Rate: {:.2}%, Black Win Rate: {:.2}%", white_win_rate, black_win_rate);
+        // println!("White Gammon Rate: {:.2}%, White Backgammon Rate: {:.2}%", white_gammon_rate, white_backgammon_rate);
+        // println!("Black Gammon Rate: {:.2}%, Black Backgammon Rate: {:.2}%", black_gammon_rate, black_backgammon_rate);
+        // println!("============================================");
 
         let outcome = format!(
             "Games: {}, White Wins: {}, Black Wins: {},\nWhite Win Rate: {:.2}%, Black Win Rate: {:.2}%,\nWhite Gammon Rate: {:.2}%, Black Gammon Rate: {:.2}%,\nWhite Backgammon Rate: {:.2}%, Black Backgammon Rate: {:.2}%",

@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 
 use hashbrown::HashMap;
 
-use nannou::rand::{random, seq::SliceRandom, thread_rng};
+use nannou::{prelude::Pow, rand::{random, seq::SliceRandom, thread_rng}};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::game::{Board, Dice, GameOutcome, Move, Player};
@@ -117,11 +117,7 @@ fn simulate_random_game(board: &Board, depth: usize) -> f32 {
         if GameOutcome::Ongoing != current_board.outcome() {
             break;
         } 
-        let m = if random::<f32>() < 0.1 {
-            choose_random_move(&current_board, dice)
-        } else {
-            find_highest_eval_move(&current_board, dice)
-        };
+        let m = find_highest_eval_move(&current_board, dice);
 
         // let m = find_highest_eval_move(&current_board, dice);
 
@@ -142,21 +138,30 @@ fn choose_random_move(board: &Board, dice: Dice) -> Move {
 }
 
 fn find_highest_eval_move(board: &Board, dice: Dice) -> Move {
-    let mut legal_moves = board.generage_moves(dice);
+    let legal_moves = board.generage_moves(dice);
     
     if legal_moves.is_empty() {
         panic!("No legal moves available");
     }
 
-    legal_moves.shuffle(&mut thread_rng());
+    // legal_moves.shuffle(&mut thread_rng());
+    let len = legal_moves.len();
+    
+    let indx = (random::<f32>().pow(16) * (len as f32 - 1.0)) as usize; 
+    // println!("Choosing move at index: {}\\{}", indx, len);
 
-    legal_moves.into_iter()
+    let mut evals = legal_moves.into_iter()
         .map(|m| {
             let mut new_board = board.clone();
             new_board.make_move_unchecked(m);
-            (m, Reverse(new_board.eval()))
+            (m, new_board.eval())
         })
-        .max_by(|(_, eval1), (_, eval2)| eval1.partial_cmp(eval2).unwrap())
+        .collect::<Vec<_>>();
+
+    evals.sort_unstable_by(|(_, eval1), (_, eval2)| eval1.partial_cmp(&eval2).unwrap());
+    evals
+        .into_iter()
+        .nth(indx)
         .map(|(m, _)| m)
         .expect("No moves available")
 }
