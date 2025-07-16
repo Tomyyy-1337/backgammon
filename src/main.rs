@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+// #![windows_subsystem = "windows"]
 
 use std::usize;
 
@@ -589,8 +589,8 @@ fn run_games() {
 
                     let start = std::time::Instant::now();
                     let mv = match board.get_active_player() {
-                        Player::White => find_best_move(&board, dice, 0),
-                        Player::Black => find_best_move(&board, dice, 2),
+                        Player::White => find_best_move(&board, dice, 2),
+                        Player::Black => choose_random_move(&board, dice),
                     };
                     let duration = start.elapsed();
                     println!("{:?} moved {}", board.get_active_player(), mv.to_string());   

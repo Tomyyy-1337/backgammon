@@ -1,5 +1,6 @@
 use std::{mem::swap, num::NonZeroU8};
 
+use nannou::event::ElementState;
 use rand::random_range;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -133,11 +134,13 @@ impl Board {
                 let mult = 24 - i as i16;
                 score += checker as i16 * mult.min(19).max(6);         
             } 
-            if i >= 18 && checker >= 2 {
-                score += 3;
-            } else if i < 6 && checker <= -2 {
-                score -= 3;
-            }
+            if (i >= 18 || i < 6) && checker.abs() >= 2 {
+                if checker > 0 {
+                    score += 3;
+                } else {
+                    score -= 3;
+                }
+            } 
         }
         
         score += (self.active_home as i16 - self.inactive_home as i16) * 25;
@@ -214,7 +217,7 @@ impl Board {
         unsafe { &*(self.board[18..24].as_ptr() as *const [i8; 6]) }
     }
 
-    fn can_bear_off(&self) -> bool {
+    pub fn can_bear_off(&self) -> bool {
         self.active_bar == 0 && self.active_home_board().iter().filter(|&&a| a > 0).sum::<i8>() + self.active_home as i8 == 15
     }
 
