@@ -7,7 +7,7 @@ use nannou::{color::WHITE, geom::Rect, wgpu::Backends};
 use rand::{rng, seq::IteratorRandom};
 
 fn main() {
-    run_games();
+    // run_games();
     // benchmark();
 
     // let depth = 2;
@@ -80,7 +80,7 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
                         //     Player::Black => choose_random_move(&board, dice),
                         // };
                         // best_move
-                        monte_carlo_search(&board, dice, 1000, 20)
+                        monte_carlo_search(&board, dice, 400, 20)
                     }));
                 },
                 Some(thread) => {
