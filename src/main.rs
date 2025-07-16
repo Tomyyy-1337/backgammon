@@ -1,8 +1,8 @@
-// #![windows_subsystem = "windows"]
+#![windows_subsystem = "windows"]
 
 use std::usize;
 
-use backgammon::{engine::find_best_move, game::{self, Board, Dice, GameOutcome, HalfMove, Move, Player, Position, PositionEnum}};
+use backgammon::{engine::find_best_move, game::{self, Board, Dice, GameOutcome, HalfMoveEnum, Move, Player, Position, PositionEnum}};
 use nannou::{color::WHITE, geom::Rect, wgpu::Backends};
 use rand::{rng, seq::IteratorRandom};
 
@@ -88,7 +88,6 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
                     }
                     let thread = model.engine_thread.take().unwrap();
                     let best_move = thread.join().expect("Failed to join engine thread");
-                    // model.board.make_move_unchecked(best_move);
 
                     model.state = State::ShowMove{mv: best_move, indx: 0, timer: (frames_per_second / 2) as u8};
                 }
@@ -116,7 +115,7 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
                 model.mous_is_down = true;
                 if let Some(pending) = model.pending_move_part {
                     if model.available_moves.iter().flat_map(|m|m.get_half_moves()).any(|m| m.to == current_mouse_pos && m.from == Position::from_enum(pending)) {
-                        let halfmove = HalfMove { from: Position::from_enum(pending), to: current_mouse_pos };
+                        let halfmove = HalfMoveEnum { from: Position::from_enum(pending), to: current_mouse_pos };
                         model.pending_move_part = None;
                         model.board.make_half_move_unchecked(&halfmove);
                         model.available_moves = model.available_moves.drain(..)

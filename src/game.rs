@@ -171,7 +171,7 @@ impl Board {
     pub fn captured_value(&self, m: &Move) -> u8 {
         let mut sum = 0;
         for half_move in m.half_moves.iter() {
-            let HalfMove { to, ..} = half_move;
+            let HalfMoveEnum { to, ..} = half_move;
             match to.to_enum() {
                 PositionEnum::Board(n) if self.board[n as usize] == -1 => sum += n + 1,
                 _ => (),
@@ -222,7 +222,7 @@ impl Board {
     // Moves a checker from one position to another.
     // Fast but illegal moves can lead to undefined behavior.
     // Only use this function if you are sure the move is valid.
-    pub fn make_half_move_unchecked(&mut self, half_move: &HalfMove) {
+    pub fn make_half_move_unchecked(&mut self, half_move: &HalfMoveEnum) {
         match half_move.from.to_enum() {
             PositionEnum::Home => panic!("Cannot move from home position"),
             PositionEnum::Bar => self.active_bar -= 1,
@@ -291,7 +291,7 @@ impl Board {
         results
     }
 
-    pub fn generate_half_moves(&self, dice: Dice) -> TinyVector<(HalfMove, Dice), 30> {
+    pub fn generate_half_moves(&self, dice: Dice) -> TinyVector<(HalfMoveEnum, Dice), 30> {
         let available_dice = dice.get_unique_value();
         let mut half_moves = TinyVector::new();
 
@@ -300,7 +300,7 @@ impl Board {
                 for i in 0..(self.board.len() - die as usize) {
                     if self.board[i] > 0 && self.board[i + die as usize] >= -1 {
                         half_moves.push((
-                            HalfMove {
+                            HalfMoveEnum {
                                 from: Position::from_enum(PositionEnum::Board(i as u8)),
                                 to: Position::from_enum(PositionEnum::Board((i + die as usize) as u8)),
                             },
@@ -314,7 +314,7 @@ impl Board {
                     let indx = 6 - die as usize;
                     if self.active_home_board()[indx] > 0 {
                         half_moves.push((
-                            HalfMove {
+                            HalfMoveEnum {
                                 from: Position::from_enum(PositionEnum::Board(24 - die)),
                                 to: Position::from_enum(PositionEnum::Home),
                             },
@@ -328,7 +328,7 @@ impl Board {
                         for (i,v) in self.active_home_board()[indx..].iter().enumerate() {
                             if *v > 0 {
                                 half_moves.push((
-                                    HalfMove {
+                                    HalfMoveEnum {
                                         from: Position::from_enum(PositionEnum::Board(18 + indx as u8 + i as u8)),
                                         to: Position::from_enum(PositionEnum::Home),
                                     },
@@ -343,7 +343,7 @@ impl Board {
             for &die in available_dice.iter() {
                 if self.inactive_home_board()[die as usize - 1] >= -1 {
                     half_moves.push((
-                        HalfMove {
+                        HalfMoveEnum {
                             from: Position::from_enum(PositionEnum::Bar),
                             to: Position::from_enum(PositionEnum::Board(die - 1)),
                         },
@@ -374,28 +374,28 @@ impl Position {
     pub fn from_enum(position: PositionEnum) -> Self {
         match position {
             PositionEnum::Board(n) => Position { position: NonZeroU8::new(n+1).unwrap() },
-            PositionEnum::Bar => Position { position: NonZeroU8::new(254).unwrap() },
-            PositionEnum::Home => Position { position: NonZeroU8::new(255).unwrap() },
+            PositionEnum::Bar => Position { position: NonZeroU8::new(25).unwrap() },
+            PositionEnum::Home => Position { position: NonZeroU8::new(26).unwrap() },
         }
     }
     pub fn to_enum(&self) -> PositionEnum {
         match self.position.get() {
-            255 => PositionEnum::Home,
-            254 => PositionEnum::Bar,
+            25 => PositionEnum::Bar,
+            26 => PositionEnum::Home,
             n => PositionEnum::Board(n - 1),
         }
     } 
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HalfMove {
+pub struct HalfMoveEnum {
     pub from: Position,
     pub to: Position,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Move {
-    half_moves: TinyVector<HalfMove, 4>,
+    half_moves: TinyVector<HalfMoveEnum, 4>,
 }
 
 impl Move {
@@ -414,7 +414,7 @@ impl Move {
         Move { half_moves: TinyVector::new() }
     }
 
-    pub fn append(&mut self, half_move: HalfMove) {
+    pub fn append(&mut self, half_move: HalfMoveEnum) {
         self.half_moves.push(half_move);
     }
 
@@ -422,11 +422,11 @@ impl Move {
         self.half_moves.iter().count()
     }
 
-    pub fn get_half_moves(&self) -> impl Iterator<Item = &HalfMove> {
+    pub fn get_half_moves(&self) -> impl Iterator<Item = &HalfMoveEnum> {
         self.half_moves.iter()
     }
 
-    pub fn remove_half_move(&mut self, half_move: &HalfMove) {
+    pub fn remove_half_move(&mut self, half_move: &HalfMoveEnum) {
         self.half_moves.remove(half_move);
     }
 
