@@ -1,4 +1,4 @@
-// #![windows_subsystem = "windows"]
+#![windows_subsystem = "windows"]
 
 use std::usize;
 
@@ -80,7 +80,7 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
                         //     Player::Black => choose_random_move(&board, dice),
                         // };
                         // best_move
-                        monte_carlo_search(&board, dice, 400, 20)
+                        monte_carlo_search(&board, dice, 1000, 20)
                     }));
                 },
                 Some(thread) => {
