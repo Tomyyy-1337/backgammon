@@ -147,7 +147,7 @@ fn find_highest_eval_move(board: &Board, dice: Dice) -> Move {
     // legal_moves.shuffle(&mut thread_rng());
     let len = legal_moves.len();
     
-    let indx = (random::<f32>().pow(16) * (len as f32 - 1.0)) as usize; 
+    let indx = (random::<f32>().pow(20) * (len as f32 - 1.0)) as usize; 
     // println!("Choosing move at index: {}\\{}", indx, len);
 
     let mut evals = legal_moves.into_iter()

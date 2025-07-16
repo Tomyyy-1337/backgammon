@@ -7,7 +7,7 @@ use nannou::{color::WHITE, geom::Rect, wgpu::Backends};
 use rand::{rng, seq::IteratorRandom};
 
 fn main() {
-    // run_games();
+    run_games();
     // benchmark();
 
     // let depth = 2;
@@ -590,8 +590,8 @@ fn run_games() {
 
                     // let start = std::time::Instant::now();
                     let mv = match board.get_active_player() {
-                        Player::Black => monte_carlo_search(&board, dice, 2000, 20),
-                        Player::White => monte_carlo_search(&board, dice, 10000, 20),
+                        Player::Black => find_best_move(&board, dice, 2),
+                        Player::White => monte_carlo_search(&board, dice, 1000, 20),
                     };
                     // let duration = start.elapsed();
                     // println!("{:?} moved {}", board.get_active_player(), mv.to_string());   
