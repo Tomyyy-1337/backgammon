@@ -1,8 +1,8 @@
 #![windows_subsystem = "windows"]
 
-use std::usize;
+use std::{time::Instant, usize};
 
-use backgammon::{engine::{find_best_move, monte_carlo_search}, game::{self, Board, Dice, GameOutcome, HalfMoveEnum, Move, Player, Position, PositionEnum}};
+use backgammon::{engine::{find_best_move, monte_carlo_search, monte_carlo_search_2}, game::{self, Board, Dice, GameOutcome, HalfMoveEnum, Move, Player, Position, PositionEnum}};
 use nannou::{color::WHITE, geom::Rect, wgpu::Backends};
 use rand::{rng, seq::IteratorRandom};
 
@@ -22,6 +22,7 @@ fn main() {
 }
 
 struct Model {
+    window_id: nannou::window::Id,
     board: Board,
     games_played: u32,
     wins: (u32, u32),
@@ -33,6 +34,7 @@ struct Model {
     mous_is_down: bool,
     available_moves: Vec<game::Move>,
     engine_thread: Option<std::thread::JoinHandle<game::Move>>,
+    last_fullscreen: Instant,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -48,6 +50,27 @@ enum State {
 }
 
 fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
+    for key in app.keys.down.iter() {
+        match key {
+            nannou::event::Key::Escape => {
+                app.quit();
+            }
+            nannou::event::Key::F11 if model.last_fullscreen.elapsed().as_millis() > 200 => {
+                app.window(model.window_id).unwrap().set_fullscreen(!app.window(model.window_id).unwrap().is_fullscreen());
+                model.last_fullscreen = Instant::now();
+            }
+            nannou::event::Key::R => {
+                model.board = Board::new();
+                model.state = State::RollDice;
+                model.current_dice = None;
+                model.pending_move_part = None;
+                model.available_moves.clear();
+                model.engine_thread = None;
+            }
+            _ => (),
+        }
+    }
+
     let frames_per_second = (1.0 / update.since_last.as_secs_f32()) as usize;
 
     match model.state {
@@ -80,7 +103,7 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
                         //     Player::Black => choose_random_move(&board, dice),
                         // };
                         // best_move
-                        monte_carlo_search(&board, dice, 1000, 20)
+                        monte_carlo_search(&board, dice, 2000, 40)
                     }));
                 },
                 Some(thread) => {
@@ -134,34 +157,6 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
                     }
                 }       
             }
-            match model.board.outcome() {
-                GameOutcome::Ongoing => (),
-                GameOutcome::Win(player) => {
-                    match player {
-                        Player::White => model.wins.0 += 1,
-                        Player::Black => model.wins.1 += 1,
-                    }
-                    model.games_played += 1;
-                    model.board = Board::new();
-                }
-                GameOutcome::Gammon(player) => {
-                    model.board = Board::new();
-                    match player {
-                        Player::White => model.gammons.0 += 1,
-                        Player::Black => model.gammons.1 += 1,  
-                    }
-                    model.games_played += 1;
-                    model.board = Board::new();
-                }
-                GameOutcome::Backgammon(player) => {
-                    match player {
-                        Player::White => model.backgammons.0 += 1,
-                        Player::Black => model.backgammons.1 += 1,  
-                    }
-                    model.games_played += 1;
-                    model.board = Board::new();
-                }
-            }
             outcome(model);
         }
     }
@@ -170,16 +165,14 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
 }
 
 fn outcome(model: &mut Model) {
-    match model.board.outcome() {
+    let outcome = model.board.outcome();
+    match outcome {
         GameOutcome::Ongoing => (),
         GameOutcome::Win(player) => {
             match player {
                 Player::White => model.wins.0 += 1,
                 Player::Black => model.wins.1 += 1,
             }
-            model.games_played += 1;
-            model.board = Board::new();
-            model.state = State::RollDice;
         }
         GameOutcome::Gammon(player) => {
             model.board = Board::new();
@@ -187,40 +180,45 @@ fn outcome(model: &mut Model) {
                 Player::White => model.gammons.0 += 1,
                 Player::Black => model.gammons.1 += 1,  
             }
-            model.games_played += 1;
-            model.board = Board::new();
-            model.state = State::RollDice;
         }
         GameOutcome::Backgammon(player) => {
             match player {
                 Player::White => model.backgammons.0 += 1,
                 Player::Black => model.backgammons.1 += 1,  
             }
+        }
+    }
+    match outcome {
+        GameOutcome::Ongoing => (),
+        _ => {
             model.games_played += 1;
             model.board = Board::new();
-            model.state = State::RollDice;
+            model.state = State::ChooseMove;
+            model.current_dice = Some(Dice::initial_roll());
         }
     }
 }
 
 fn model(app: &nannou::App) -> Model {
-    app.new_window()
+    let window = app.new_window()
         .view(view)
         .build()
         .unwrap();
     
     Model {
+        window_id: window,
         board: Board::new(),
         games_played: 0,
         wins: (0, 0),
         gammons: (0, 0),
         backgammons: (0, 0),
-        current_dice: None, 
-        state: State::RollDice,
+        current_dice: Some(Dice::initial_roll()), 
+        state: State::ChooseMove,
         pending_move_part: None,
         mous_is_down: false,
         available_moves: Vec::new(),
         engine_thread: None,
+        last_fullscreen: Instant::now(),
     }
 }
 
@@ -590,8 +588,8 @@ fn run_games() {
 
                     // let start = std::time::Instant::now();
                     let mv = match board.get_active_player() {
-                        Player::Black => find_best_move(&board, dice, 2),
                         Player::White => monte_carlo_search(&board, dice, 1000, 20),
+                        Player::Black => monte_carlo_search_2(&board, dice, 1000, 1000),
                     };
                     // let duration = start.elapsed();
                     // println!("{:?} moved {}", board.get_active_player(), mv.to_string());   

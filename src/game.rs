@@ -115,8 +115,6 @@ impl Board {
     }
 
     pub fn eval(&self) -> f32 {
-        let mut score = 0;
-
         match self.outcome() {
             GameOutcome::Win(player) if player == self.active_player => return 1000.0,
             GameOutcome::Win(_) => return -1000.0,
@@ -126,6 +124,8 @@ impl Board {
             GameOutcome::Backgammon(_) => return -3000.0,
             _ => {}
         }
+        
+        let mut score = 0;
 
         for (i, &checker) in self.board.iter().enumerate() {
             if checker > 0 {
@@ -137,14 +137,49 @@ impl Board {
             } 
             if (i >= 18 || i < 6) && checker.abs() >= 2 {
                 if checker > 0 {
-                    score += 3;
+                    score += 8;
                 } else {
-                    score -= 3;
+                    score -= 8;
                 }
             } 
         }
         
-        score += (self.active_home as i16 - self.inactive_home as i16) * 25;
+        score += (self.active_home as i16 - self.inactive_home as i16) * 35;
+
+        score as f32
+    }
+
+    pub fn simple_eval(&self) -> f32 {
+        match self.outcome() {
+            GameOutcome::Win(player) if player == self.active_player => return 1000.0,
+            GameOutcome::Win(_) => return -1000.0,
+            GameOutcome::Gammon(player) if player == self.active_player => return 2000.0,
+            GameOutcome::Gammon(_) => return -2000.0,
+            GameOutcome::Backgammon(player) if player == self.active_player => return 3000.0,
+            GameOutcome::Backgammon(_) => return -3000.0,
+            _ => {}
+        }
+
+        let mut score = 0;
+
+        for (i, &checker) in self.board.iter().enumerate() {
+            if checker > 0 {
+                let mult = i as i16 + 1;
+                score += checker as i16 * mult.min(19).max(6);
+            } else if checker < 0 {
+                let mult = 24 - i as i16;
+                score += checker as i16 * mult.min(19).max(6);         
+            } 
+            if (i >= 18 || i < 6) && checker.abs() >= 2 {
+                if checker > 0 {
+                    score += 8;
+                } else {
+                    score -= 8;
+                }
+            } 
+        }
+
+        score += (self.active_home as i16 - self.inactive_home as i16) * 35;
 
         score as f32
     }
@@ -192,7 +227,7 @@ impl Board {
         self.invert_board();
     }
 
-    fn invert_board(&mut self) {
+    pub fn invert_board(&mut self) {
         for i in 0..self.board.len() / 2 {
             let a = -self.board[i];
             let j = self.board.len() - 1 - i;
@@ -486,6 +521,16 @@ impl Dice {
         let a = random_range(1..=6);
         let b = random_range(1..=6);
         Dice::new(a, b)
+    }
+
+    pub fn initial_roll() -> Dice {
+        loop {
+            let a = random_range(1..=6);
+            let b = random_range(1..=6);
+            if a != b {
+                return Dice::new(a, b);
+            }
+        }
     }
 
     fn is_used(&self) -> bool {
