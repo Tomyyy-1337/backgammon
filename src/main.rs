@@ -2,7 +2,7 @@
 
 use std::{time::Instant, usize};
 
-use backgammon::{engine::{find_best_move, monte_carlo_search, monte_carlo_search_2}, game::{self, Board, Dice, GameOutcome, HalfMoveEnum, Move, Player, Position, PositionEnum}};
+use backgammon::{engine::{find_best_move, mcts_search, monte_carlo_search, monte_carlo_search_2}, game::{self, Board, Dice, GameOutcome, HalfMoveEnum, Move, Player, Position, PositionEnum}};
 use nannou::{color::WHITE, geom::Rect, wgpu::Backends};
 use rand::{rng, seq::IteratorRandom};
 
@@ -61,8 +61,8 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
             }
             nannou::event::Key::R => {
                 model.board = Board::new();
-                model.state = State::RollDice;
-                model.current_dice = None;
+                model.state = State::ChooseMove;
+                model.current_dice = Some(Dice::initial_roll());
                 model.pending_move_part = None;
                 model.available_moves.clear();
                 model.engine_thread = None;
@@ -82,7 +82,7 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
             model.board.switch_player();
             model.state = State::UserMove;
             model.current_dice = Some(Dice::roll());
-            model.available_moves = model.board.generage_moves(model.current_dice.unwrap());
+            model.available_moves = model.board.generate_moves(model.current_dice.unwrap());
             outcome(model);
         }
         State::ShowMove{mv, indx, timer} if timer == 0 => {
@@ -103,7 +103,7 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
                         //     Player::Black => choose_random_move(&board, dice),
                         // };
                         // best_move
-                        monte_carlo_search(&board, dice, 2000, 40)
+                        monte_carlo_search(&board, dice, 1000, 20)
                     }));
                 },
                 Some(thread) => {
@@ -589,7 +589,7 @@ fn run_games() {
                     // let start = std::time::Instant::now();
                     let mv = match board.get_active_player() {
                         Player::White => monte_carlo_search(&board, dice, 1000, 20),
-                        Player::Black => monte_carlo_search_2(&board, dice, 1000, 1000),
+                        Player::Black => mcts_search(board, dice, 100000),
                     };
                     // let duration = start.elapsed();
                     // println!("{:?} moved {}", board.get_active_player(), mv.to_string());   
@@ -650,7 +650,7 @@ fn run_games() {
 }
 
 fn choose_random_move(board: &Board, dice: Dice) -> game::Move {
-    let moves = board.generage_moves(dice);
+    let moves = board.generate_moves(dice);
     if moves.is_empty() {
         panic!("No valid moves available");
     }
@@ -664,11 +664,11 @@ fn benchmark() {
     let depth = 3;
     
     let m = find_best_move(&board, Dice::new(1, 4), depth);
-    let available_moves = board.generage_moves(Dice::new(1, 4));
+    let available_moves = board.generate_moves(Dice::new(1, 4));
 
     let board = Board::new();
     for dice in Dice::ALL {
-        let legal_moves = board.generage_moves(dice);
+        let legal_moves = board.generate_moves(dice);
         assert!(!legal_moves.is_empty(), "No legal moves available for dice: {:?}", dice);
     }
 
@@ -683,7 +683,7 @@ fn performance_test(board: &Board, depth: u32) -> usize {
     }
     let mut sum = 0;
     for dice in Dice::ALL {
-        let legal_moves = board.generage_moves(dice);
+        let legal_moves = board.generate_moves(dice);
         for mv in legal_moves {
             let mut new_board = board.clone();
             new_board.make_move_unchecked(mv);

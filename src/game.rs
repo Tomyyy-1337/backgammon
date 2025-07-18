@@ -285,7 +285,7 @@ impl Board {
         self.switch_player();
     }
 
-    pub fn generage_moves(&self, dice: Dice) -> Vec<Move> {
+    pub fn generate_moves(&self, dice: Dice) -> Vec<Move> {
         let mut stack: Vec<(Dice, Board, Move)> = vec![(dice, *self, Move::new())];
         let mut next_stack: Vec<(Dice, Board, Move)> = Vec::new();
         
@@ -507,6 +507,13 @@ impl Dice {
             Dice::Double { value: a, used: 0 }
         } else {
             Dice::Single { value_1: a, value_2: b, used: DiceUsage::BothAvailable }
+        }
+    }
+
+    pub fn probability(&self) -> f32 {
+        match self {
+            Dice::Double { .. } => 0.0833,
+            Dice::Single { .. } => 0.1667 
         }
     }
 
