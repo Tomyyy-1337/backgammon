@@ -149,41 +149,6 @@ impl Board {
         score as f32
     }
 
-    pub fn simple_eval(&self) -> f32 {
-        match self.outcome() {
-            GameOutcome::Win(player) if player == self.active_player => return 1000.0,
-            GameOutcome::Win(_) => return -1000.0,
-            GameOutcome::Gammon(player) if player == self.active_player => return 2000.0,
-            GameOutcome::Gammon(_) => return -2000.0,
-            GameOutcome::Backgammon(player) if player == self.active_player => return 3000.0,
-            GameOutcome::Backgammon(_) => return -3000.0,
-            _ => {}
-        }
-
-        let mut score = 0;
-
-        for (i, &checker) in self.board.iter().enumerate() {
-            if checker > 0 {
-                let mult = i as i16 + 1;
-                score += checker as i16 * mult.min(19).max(6);
-            } else if checker < 0 {
-                let mult = 24 - i as i16;
-                score += checker as i16 * mult.min(19).max(6);         
-            } 
-            if (i >= 18 || i < 6) && checker.abs() >= 2 {
-                if checker > 0 {
-                    score += 8;
-                } else {
-                    score -= 8;
-                }
-            } 
-        }
-
-        score += (self.active_home as i16 - self.inactive_home as i16) * 35;
-
-        score as f32
-    }
-
     pub fn new() -> Self {
         Board {
             board: [2,0,0,0,0,-5,0,-3,0,0,0,5,-5,0,0,0,3,0,5,0,0,0,0,-2],

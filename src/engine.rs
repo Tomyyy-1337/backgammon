@@ -108,33 +108,6 @@ pub fn monte_carlo_search(board: &Board, dice: Dice, simulations: usize, depth: 
         .expect("No moves available")
 }
 
-pub fn monte_carlo_search_2(board: &Board, dice: Dice, simulations: usize, depth: usize) -> Move {
-    let legal_moves = board.generate_moves(dice);
-
-    if legal_moves.is_empty() {
-        panic!("No legal moves available");
-    }
-
-    legal_moves.into_par_iter() 
-        .map(|m| {
-            let mut new_board = board.clone();
-            new_board.make_move_unchecked(m.clone());
-            let mut score = 0.0;
-            for _ in 0..simulations {
-                match board.get_active_player() {
-                    Player::White => score += simulate_random_game_2(&new_board, depth),
-                    Player::Black => score -= simulate_random_game_2(&new_board, depth),
-                }
-            }
-            (m, score / simulations as f32)
-        })
-        .max_by(|(_, score1), (_, score2)| {
-            score1.partial_cmp(score2).unwrap()
-        })
-        .map(|(m, _)| m)
-        .expect("No moves available")
-}
-
 fn simulate_random_game(board: &Board, depth: usize) -> f32 {
     let mut current_board = board.clone();
 
@@ -151,25 +124,6 @@ fn simulate_random_game(board: &Board, depth: usize) -> f32 {
         current_board.make_move_unchecked(m);
     }
     
-    current_board.eval_absolute()
-}
-
-fn simulate_random_game_2(board: &Board, depth: usize) -> f32 {
-    let mut current_board = board.clone();
-    
-    for _ in 0..depth { 
-        let dice = Dice::roll();
-        
-        if GameOutcome::Ongoing != current_board.outcome() {
-            break;
-        } 
-        let m = find_highest_eval_move_2(&current_board, dice);
-
-        // let m = find_highest_eval_move(&current_board, dice);
-
-        current_board.make_move_unchecked(m);
-    }
-
     current_board.eval_absolute()
 }
 
@@ -201,35 +155,6 @@ fn find_highest_eval_move(board: &Board, dice: Dice) -> Move {
             let mut new_board = board.clone();
             new_board.make_move_unchecked(m);
             (m, new_board.eval())
-        })
-        .collect::<Vec<_>>();
-
-    evals.sort_unstable_by(|(_, eval1), (_, eval2)| eval1.partial_cmp(&eval2).unwrap());
-    evals
-        .into_iter()
-        .nth(indx)
-        .map(|(m, _)| m)
-        .expect("No moves available")
-}
-
-fn find_highest_eval_move_2(board: &Board, dice: Dice) -> Move {
-    let legal_moves = board.generate_moves(dice);
-    
-    if legal_moves.is_empty() {
-        panic!("No legal moves available");
-    }
-
-    // legal_moves.shuffle(&mut thread_rng());
-    let len = legal_moves.len();
-    
-    let indx = (random::<f32>().pow(16) * (len as f32 - 1.0)) as usize; 
-    // println!("Choosing move at index: {}\\{}", indx, len);
-
-    let mut evals = legal_moves.into_iter()
-        .map(|m| {
-            let mut new_board = board.clone();
-            new_board.make_move_unchecked(m);
-            (m, new_board.simple_eval())
         })
         .collect::<Vec<_>>();
 

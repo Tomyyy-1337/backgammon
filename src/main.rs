@@ -1,23 +1,55 @@
-#![windows_subsystem = "windows"]
+// #![windows_subsystem = "windows"]
 
 use std::{time::Instant, usize};
 
-use backgammon::{engine::{find_best_move, mcts_search, monte_carlo_search, monte_carlo_search_2}, game::{self, Board, Dice, GameOutcome, HalfMoveEnum, Move, Player, Position, PositionEnum}};
-use nannou::{color::WHITE, geom::Rect, wgpu::Backends};
+use backgammon::{engine::{find_best_move, mcts_search, monte_carlo_search}, game::{self, Board, Dice, GameOutcome, HalfMoveEnum, Move, Player, Position, PositionEnum, TinyVector}, misc::TinyVec};
+use nannou::{color::WHITE, ease::back, geom::Rect, wgpu::Backends};
 use rand::{rng, seq::IteratorRandom};
 
 fn main() {
+    // let board = backgammon::backgammon::Board::new();
+
+    // let dice = backgammon::backgammon::Dice::from_numbers(1, 2);
+    // let legal_moves = board.generate_moves(dice);
+    // println!("Legal moves: {:?}", legal_moves);
+    // let start = Instant::now();
+
+    // let mut s = 0;
+
+    // for _ in 0..1_000_000u64 {
+    //     let mut tiny_vec = TinyVec::<u64, 255>::new();
+    //     for i in 0..255 {
+    //         tiny_vec.push(i as u64);
+    //     }
+    //     s /= tiny_vec.len() as u64;
+    //     for i in (0..255).rev() {
+    //         s += tiny_vec.get(i).unwrap();
+    //     }
+    // }
+    
+    // let end = Instant::now();
+    // println!("TinyVector test completed in {:?}", end.duration_since(start));
+    // println!("Sum: {}", s);
+   
     // run_games();
     // benchmark();
 
-    // let depth = 2;
-    // println!("Starting performance test with depth {}", depth);
-    // let board = Board::new();
-    // let start = std::time::Instant::now();
-    // let count = performance_test(&board, depth);
-    // let duration = start.elapsed();
-    // println!("Performance test completed in {:?} with {} moves evaluated", duration, count);
-
+    let depth = 2;
+    println!("Starting performance test with depth {}", depth);
+    let board = Board::new();
+    let start = std::time::Instant::now();
+    let count = performance_test(&board, depth);
+    let duration = start.elapsed();
+    println!("Performance test completed in {:?} with {} moves evaluated", duration, count);
+    
+    let depth = 2;
+    println!("Starting performance test with depth {}", depth);
+    let board = backgammon::backgammon::Board::new();
+    let start = std::time::Instant::now();
+    let count = performance_test_2(&board, depth);
+    let duration = start.elapsed();
+    println!("Performance test completed in {:?} with {} moves evaluated", duration, count);
+    
     nannou::app(model).backends(Backends::DX12).update(update).run();
 }
 
@@ -41,6 +73,7 @@ struct Model {
 enum State {
     RollDice,
     ChooseMove,
+    GameOutcome(GameOutcome),
     ShowMove{
         mv: Move,
         indx: usize,
@@ -84,6 +117,14 @@ fn update(app: &nannou::App, model: &mut Model, update: nannou::event::Update) {
             model.current_dice = Some(Dice::roll());
             model.available_moves = model.board.generate_moves(model.current_dice.unwrap());
             outcome(model);
+        }
+        State::GameOutcome(_) => {
+            if !app.keys.down.is_empty() {
+                model.games_played += 1;
+                model.board = Board::new();
+                model.state = State::ChooseMove;
+                model.current_dice = Some(Dice::initial_roll());
+            }
         }
         State::ShowMove{mv, indx, timer} if timer == 0 => {
             model.board.make_half_move_unchecked(mv.get_half_moves().nth(indx).unwrap());
@@ -190,12 +231,7 @@ fn outcome(model: &mut Model) {
     }
     match outcome {
         GameOutcome::Ongoing => (),
-        _ => {
-            model.games_played += 1;
-            model.board = Board::new();
-            model.state = State::ChooseMove;
-            model.current_dice = Some(Dice::initial_roll());
-        }
+        _ => model.state = State::GameOutcome(outcome),
     }
 }
 
@@ -367,11 +403,16 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
         
         if checkers != 0 {
             let color = if checkers > 0 { nannou::color::WHITE } else { nannou::color::RED };
+            let color_2 = if checkers > 0 { nannou::color::LIGHTGRAY } else { nannou::color::DARKRED };
             for i in 0..checkers.abs().min(5) {
                 let y =  y - tile_width * 0.5 * (i as f32 + 0.5) - 5.0;
                 draw.ellipse()
                     .x_y(x + tile_width / 2.0, y)
                     .w_h(tile_width * 0.5, tile_width * 0.5)
+                    .color(color_2);
+                draw.ellipse()
+                    .x_y(x + tile_width / 2.0, y)
+                    .w_h(tile_width * 0.4, tile_width * 0.4)
                     .color(color);
             }
 
@@ -427,12 +468,17 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
         
         if checkers != 0 {
             let color = if checkers > 0 { nannou::color::WHITE } else { nannou::color::RED };
+            let color_2 = if checkers > 0 { nannou::color::LIGHTGRAY } else { nannou::color::DARKRED };
             for i in 0..checkers.abs().min(5) {
                 let y = y + tile_width * 0.5 * (i as f32 + 0.5) + 5.0;
                 draw.ellipse()
-                .x_y(x + tile_width / 2.0, y)
-                .w_h(tile_width * 0.5, tile_width * 0.5)
-                .color(color);
+                    .x_y(x + tile_width / 2.0, y)
+                    .w_h(tile_width * 0.5, tile_width * 0.5)
+                    .color(color_2);
+                draw.ellipse()
+                    .x_y(x + tile_width / 2.0, y)
+                    .w_h(tile_width * 0.4, tile_width * 0.4)
+                    .color(color);
         }
         
         if checkers.abs() > 5 {
@@ -543,6 +589,23 @@ fn view(app: &nannou::App, model: &Model, frame: nannou::frame::Frame) {
         .w(stats_rect_width - 20.0)
         .font_size(16)
         .color(nannou::color::WHITE);
+
+    match model.state {
+        State::GameOutcome(outcome) => {
+            let s = match outcome {
+                GameOutcome::Ongoing => "Game is ongoing".to_string(),
+                GameOutcome::Win(player) => format!("Player {:?} wins!", player),
+                GameOutcome::Gammon(player) => format!("Player {:?} wins with a gammon!", player),
+                GameOutcome::Backgammon(player) => format!("Player {:?} wins with a backgammon!", player),
+            };
+            draw.text(&s)
+                .x_y(0.0, 0.0)
+                .w(board_rect.w())
+                .font_size(100)
+                .color(nannou::color::GREEN);
+        }
+        _ => ()
+    }
 
     // Draw eval_bar
     let eval_bar_width = 12.0;
@@ -661,7 +724,7 @@ fn benchmark() {
     let board = Board::bench();
     println!("Evaluation: {}", board.eval_absolute());
     let start = std::time::Instant::now();
-    let depth = 3;
+    let depth = 2;
     
     let m = find_best_move(&board, Dice::new(1, 4), depth);
     let available_moves = board.generate_moves(Dice::new(1, 4));
@@ -688,6 +751,22 @@ fn performance_test(board: &Board, depth: u32) -> usize {
             let mut new_board = board.clone();
             new_board.make_move_unchecked(mv);
             sum += performance_test(&new_board, depth - 1);
+        }
+    }
+    sum
+}
+
+fn performance_test_2(board: &backgammon::backgammon::Board, depth: u32) -> usize {
+    if depth == 0 {
+        return 1;
+    }
+    let mut sum = 0;
+    for dice in backgammon::backgammon::Dice::ALL {
+        let legal_moves = board.generate_moves(dice);
+        for mv in legal_moves {
+            let mut new_board = board.clone();
+            new_board.make_move_unchecked(mv);
+            sum += performance_test_2(&new_board, depth - 1);
         }
     }
     sum
